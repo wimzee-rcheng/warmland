@@ -1067,6 +1067,27 @@
     press('back'); secs(1.4);
     check('X flies home from open sky', G.sceneName === 'house', G.sceneName);
 
+    // -------------------------------------------- canvas state stays balanced
+    sec('render state hygiene');
+    G.state.weather = 'rainy';
+    G.go('house', { room: 'outside' }); steps(2); secs(0.4);
+    // instrument the context: every save must meet its restore each frame
+    var depth = 0, minDepth = 0, maxDepth = 0;
+    var rSave = G.ctx.save.bind(G.ctx), rRest = G.ctx.restore.bind(G.ctx);
+    G.ctx.save = function () { depth++; if (depth > maxDepth) maxDepth = depth; rSave(); };
+    G.ctx.restore = function () { depth--; if (depth < minDepth) minDepth = depth; rRest(); };
+    // ten simulated seconds of rain — hundreds of drops live and die
+    for (var rf = 0; rf < 600; rf++) {
+      G.step(1 / 60);
+      if (rf % 60 === 0) {
+        check('save/restore balanced at t=' + (rf / 60) + 's', depth === 0, 'depth ' + depth);
+      }
+    }
+    check('no restore ever underflowed', minDepth >= 0, minDepth);
+    check('the frame ends at full alpha', G.ctx.globalAlpha === 1, G.ctx.globalAlpha);
+    G.ctx.save = rSave; G.ctx.restore = rRest;
+    G.state.weather = 'sunny';
+
     // ------------------------------------------------------- saving
     sec('saving');
     if (W.save.supported()) {

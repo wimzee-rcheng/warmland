@@ -224,6 +224,12 @@
         p.life += dt;
         p.x += p.vx * dt;
         p.y += p.vy * dt;
+        // rain/snow retire HERE — despawning inside draw leaked a ctx.save()
+        // per dead drop and progressively dimmed the whole screen
+        if ((p.kind === 'rain' || p.kind === 'snow') && p.y > 590) {
+          parts.splice(i, 1);
+          continue;
+        }
         if (p.kind !== 'steam' && p.kind !== 'bubble' && p.kind !== 'breeze' &&
             p.kind !== 'zzz' && p.kind !== 'rain' && p.kind !== 'snow') p.vy += 42 * dt;
         if (p.life >= p.max) parts.splice(i, 1);
@@ -236,7 +242,6 @@
         ctx.save();
         ctx.globalAlpha = 1 - k * k;
         if (p.kind === 'rain') {
-          if (p.y > 590) { parts.splice(i, 1); continue; }
           ctx.globalAlpha = 0.5;
           ctx.strokeStyle = '#8FB5D6';
           ctx.lineWidth = 1.8;
@@ -245,7 +250,6 @@
           ctx.lineTo(p.x - 2, p.y + p.size);
           ctx.stroke();
         } else if (p.kind === 'snow') {
-          if (p.y > 590) { parts.splice(i, 1); continue; }
           ctx.globalAlpha = 0.8;
           ctx.fillStyle = '#FFFFFF';
           ctx.beginPath();
