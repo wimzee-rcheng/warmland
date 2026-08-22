@@ -236,6 +236,65 @@
     ctx.restore();
   }
 
+  /* The MOTHERSHIP — a vast saucer with a glowing core, baked once. */
+  var motherTile = null;
+  W.drawMothership = function (ctx, x, y, sc, t, hurt) {
+    if (!motherTile) {
+      motherTile = C.offscreen(360, 180);
+      var mg = motherTile.getContext('2d');
+      mg.translate(180, 90);
+      paintMothership(mg);
+    }
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(sc, sc);
+    if (hurt > 0) ctx.globalAlpha = 0.55 + 0.45 * Math.sin(t * 50);
+    ctx.drawImage(motherTile, -180, -90);
+    // the core pulses live — one cheap dot blit's worth of glow
+    var pulse = 0.5 + 0.5 * Math.sin(t * 3);
+    ctx.globalAlpha = (hurt > 0 ? 0.6 : 1) * (0.35 + pulse * 0.4);
+    ctx.fillStyle = '#E0C4FF';
+    ctx.beginPath();
+    ctx.arc(0, 14, 17 + pulse * 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  function paintMothership(ctx) {
+    ctx.save();
+    // vast hull
+    C.ellipse(ctx, 0, 0, 168, 44, {
+      seed: 'mshull', fill: '#5A4A78', stroke: PAL.outline, lw: 4.4, hatch: 4.6, wash: 0.72
+    });
+    C.ellipse(ctx, 0, -10, 168, 36, {
+      seed: 'msrim', stroke: PAL.outline, lw: 2.6, wob: 1.4, passes: 1, strokeAlpha: 0.6
+    });
+    // command dome
+    C.arc(ctx, 0, -18, 62, Math.PI, Math.PI * 2, {
+      seed: 'msdome', fill: '#9FE8B4', stroke: PAL.outline, lw: 3.6, hatch: 4, wash: 0.5, fillAlpha: 0.4
+    });
+    C.dot(ctx, -18, -38, 5, PAL.outline, 'mseye1');
+    C.dot(ctx, 18, -38, 5, PAL.outline, 'mseye2');
+    C.arc(ctx, 0, -30, 12, Math.PI * 0.15, Math.PI * 0.85, {
+      seed: 'msgrin', stroke: PAL.outline, lw: 2.6, wob: 0.7, passes: 1
+    });
+    // underlights
+    var lcols = ['#E0455F', '#F2C14E', '#9A5FD6', '#F2C14E', '#E0455F'];
+    for (var i = 0; i < 5; i++) {
+      C.dot(ctx, -120 + i * 60, 22, 9, lcols[i], 'msl' + i);
+    }
+    // antennae
+    for (var a = -1; a <= 1; a += 2) {
+      C.line(ctx, a * 70, -52, a * 92, -78, { seed: 'msant' + a, stroke: PAL.outline, lw: 3, wob: 1 });
+      C.dot(ctx, a * 94, -80, 5, '#E0455F', 'msab' + a);
+    }
+    // the core housing
+    C.ellipse(ctx, 0, 14, 22, 16, {
+      seed: 'mscore', fill: '#3A2E58', stroke: PAL.outline, lw: 3, hatch: 3, wash: 0.8
+    });
+    ctx.restore();
+  }
+
   /* An alien saucer for the space mission — baked the same way. */
   W.drawAlien = function (ctx, x, y, sc, t, hurt) {
     if (!alienTile) {

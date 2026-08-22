@@ -672,45 +672,50 @@
     label: 'Garden',
     init: function (st) { if (st.s.stage === undefined) st.s.stage = 0; },
     prompt: function (st) {
-      var day = G().state.day;
       if (st.s.stage === 0) return W.basket.has('seeds') ? 'Plant the seeds' : 'Needs seeds (shop!)';
       if (st.s.stage >= 3) return 'Harvest!';
-      if (st.s.wateredDay === day) return 'Growing... water again tomorrow';
+      if (st.s.water > 0) return 'Growing...';
       return 'Water the plants';
     },
     act: function (st) {
-      var day = G().state.day;
       if (st.s.stage === 0) {
         if (!W.basket.has('seeds')) { say('I need seeds — the shop sells them!'); return; }
         W.basket.remove('seeds');
         st.s.stage = 1;
-        st.s.wateredDay = day;
-        st.s.crop = CROPS[Math.floor(W.mulberry32(W.hash('crop' + day + st.idx))() * CROPS.length)];
-        say('Planted! Water it every day.');
+        st.s.crop = CROPS[Math.floor(W.mulberry32(W.hash('crop' + G().state.day + st.idx))() * CROPS.length)];
+        say('Planted! Water it and watch it grow.');
         if (W.audio) W.audio.play('clack');
         return;
       }
       if (st.s.stage >= 3) {
         if (W.basket.full()) { say('The basket is full!'); return; }
         W.basket.add(st.s.crop);
-        W.basket.add(st.s.crop);          // a proper harvest is two of them
-        if (W.basket.list()[W.basket.count() - 1] !== st.s.crop) { /* second may not fit */ }
+        if (!W.basket.full()) W.basket.add(st.s.crop);   // a generous harvest
         say('A ' + W.ITEMS[st.s.crop].name + ' harvest! Fresh for cooking.');
         W.fx.sparkle(st.x + st.w / 2, st.y + 10, 12, 60);
         st.s.stage = 0;
         st.s.crop = null;
         G().first('garden', 'First harvest!');
+        G().idea('cook');
         if (W.audio) W.audio.play('ding');
         return;
       }
-      if (st.s.wateredDay === day) { say('All watered. See you tomorrow!'); return; }
-      st.s.wateredDay = day;
-      st.s.stage++;
-      st.s.water = 1.4;
-      say(st.s.stage >= 3 ? 'Look how big! Ready to pick!' : 'Glug glug. Grow, little one!');
+      if (st.s.water > 0) { say('Glug glug... look at it go!'); return; }
+      // water as often as you like — growing is the fun, not the waiting
+      st.s.water = 1.3;
       if (W.audio) W.audio.play('water');
     },
-    update: function (st, dt) { if (st.s.water > 0) st.s.water -= dt; },
+    update: function (st, dt) {
+      if (st.s.water > 0) {
+        st.s.water -= dt;
+        if (st.s.water <= 0 && st.s.stage > 0 && st.s.stage < 3) {
+          st.s.stage++;
+          W.fx.sparkle(st.x + st.w / 2, st.y, 8, 40);
+          say(st.s.stage >= 3 ? 'Look how big! Ready to pick!' : 'It grew!');
+          if (W.audio) W.audio.play('blip');
+        }
+      }
+    },
     drawOn: function (ctx, st) {
       if (!gardenTiles) {
         gardenTiles = [];

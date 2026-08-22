@@ -9,7 +9,8 @@
 
   var C = W.crayon, PAL = W.PAL;
 
-  var S = { mission: 'megatron', f: null, t: 0, boss: null, wave: 0, spawnIn: 0, papers: {}, lock: 0 };
+  var S = { mission: 'megatron', f: null, t: 0, boss: null, wave: 0, spawnIn: 0, papers: {}, lock: 0,
+            armedNext: false };
 
   function spawnAlien() {
     var side = Math.random() < 0.5 ? -50 : 1010;
@@ -33,7 +34,18 @@
     S.wave = 0;
     S.spawnIn = 0.5;
 
-    if (S.mission === 'megatron') {
+    S.armedNext = false;
+    if (S.mission === 'mothership') {
+      // the big one: fought in the UFO, straight after the invasion
+      S.boss = { x: 480, y: 170, r: 120, hp: 26, maxHp: 26, hurt: 0, t: 0,
+                 fireIn: 2, vx: 60, mother: true, spawnIn: 5 };
+      S.f.enemies = [S.boss];
+      S.f.hero.x = 480; S.f.hero.y = 480;
+      S.f.hero.hp = S.f.hero.maxHp = 6;
+      S.f.hero.hitDy = -8;
+      S.f.hero.hitR = 45;
+      W.say('THE MOTHERSHIP! Aim for the core!', '#E0455F');
+    } else if (S.mission === 'megatron') {
       S.boss = makeBoss();
       S.f.enemies = [S.boss];
       S.f.hero.x = 300; S.f.hero.y = 470;
@@ -56,8 +68,8 @@
       var cv = C.offscreen(960, 600);
       var g = cv.getContext('2d');
       g.drawImage(C.paper(960, 600, 'mission' + S.mission,
-        S.mission === 'space' ? '#0E1030' : '#8FBF63'), 0, 0);
-      if (S.mission === 'space') {
+        S.mission === 'megatron' ? '#8FBF63' : '#0E1030'), 0, 0);
+      if (S.mission !== 'megatron') {
         var rnd = W.mulberry32(W.hash('mstars'));
         for (var st = 0; st < 90; st++) {
           C.dot(g, rnd() * 960, rnd() * 600, 1 + rnd() * 2, '#FFFFFF', 'ms' + st);
@@ -109,7 +121,7 @@
 
       // shoot
       if (W.input.down('act')) {
-        if (S.mission === 'space') {
+        if (S.mission === 'space' || S.mission === 'mothership') {
           // lean the boba stream toward the nearest saucer so straight-up
           // shots can actually connect with strafing targets
           var near = null, nd = 1e9;
@@ -129,6 +141,29 @@
       // enemies act
       for (var i = 0; i < f.enemies.length; i++) {
         var en = f.enemies[i];
+        if (en.mother) {
+          en.t += dt;
+          en.x += en.vx * dt;
+          if (en.x < 220 || en.x > 740) en.vx *= -1;
+          en.y = 170 + Math.sin(en.t * 0.8) * 26;
+          if (S.lock <= 0) en.fireIn -= dt;
+          if (en.fireIn <= 0) {
+            en.fireIn = en.hp / en.maxHp > 0.5 ? 1.7 : 1.25;
+            // a fan of three from the underlights
+            for (var fs = -1; fs <= 1; fs++) {
+              var fdx = (hero.x - en.x) / 300 + fs * 0.45;
+              f.enemyFire(en.x + fs * 80, en.y + 30, fdx * 150, 210, 11);
+            }
+          }
+          // it calls little saucers to help
+          if (S.lock <= 0) en.spawnIn -= dt;
+          if (en.spawnIn <= 0 && f.enemies.length < 3) {
+            en.spawnIn = 7;
+            spawnAlien();
+            W.say('It is calling for backup!');
+          }
+          continue;
+        }
         if (en.alien) {
           en.x += en.vx * dt;
           en.y += en.vy * dt;
@@ -173,11 +208,23 @@
 
     f.update(dt);
 
-    if (f.over && f.overT > 2.2) {
+    // beating the invasion offers the REAL fight: press E for the mothership
+    if (f.over === 'win' && S.mission === 'space' && !S.armedNext) {
+      S.armedNext = true;
+      W.game.state.missions.space = true;
+      W.game.showBanner('INVASION STOPPED!', 'Something HUGE approaches... press E!');
+      if (W.audio) W.audio.play('ding');
+    }
+    if (S.armedNext && W.input.hit('special')) {
+      S.enter({ mission: 'mothership' });
+      return;
+    }
+
+    if (f.over && f.overT > 2.2 && !(S.mission === 'space' && f.over === 'win' && f.overT < 12)) {
       var G2 = W.game;
       if (f.over === 'win') {
         G2.state.missions[S.mission] = true;
-        G2.addMoney(S.mission === 'megatron' ? 25 : 15);
+        G2.addMoney(S.mission === 'megatron' ? 25 : S.mission === 'mothership' ? 30 : 15);
         if (S.mission === 'megatron') {
           if (W.service) W.service.stop(true);
           G2.fadeTo('house', { room: 'park' });
@@ -199,7 +246,10 @@
       S.announced = true;
       if (f.over === 'win') {
         W.game.showBanner('MISSION COMPLETE', S.mission === 'megatron'
-          ? 'Megatron is sweetened. The park is safe!' : 'The skies are clear!');
+          ? 'Megatron is sweetened. The park is safe!'
+          : S.mission === 'mothership'
+            ? 'The MOTHERSHIP retreats! Space is saved!'
+            : 'The skies are clear!');
         if (W.audio) W.audio.play('win');
       } else {
         W.game.showBanner('OW!', 'Let us try that again.');
@@ -213,7 +263,7 @@
     ctx.save();
     if (f.shake > 0) ctx.translate((Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9);
 
-    if (S.mission === 'space') {
+    if (S.mission === 'space' || S.mission === 'mothership') {
       // scroll the baked star sheet for drift; two blits cover the wrap
       var off = Math.floor(S.t * 18) % 960;
       ctx.drawImage(S.paper, -off, 0);
@@ -225,7 +275,8 @@
     // enemies
     for (var e = 0; e < f.enemies.length; e++) {
       var en = f.enemies[e];
-      if (en.alien) W.drawAlien(ctx, en.x, en.y, 1, S.t, en.hurt);
+      if (en.mother) W.drawMothership(ctx, en.x, en.y, 1, S.t, en.hurt);
+      else if (en.alien) W.drawAlien(ctx, en.x, en.y, 1, S.t, en.hurt);
       else W.drawMegatron(ctx, en.x, en.y, 1, S.t, en.hurt);
     }
 
@@ -234,7 +285,7 @@
     // the player: the UFO up in space, the mech on the ground
     var flash = f.hero.hurt > 0 && Math.sin(S.t * 40) > 0;
     if (!flash) {
-      if (S.mission === 'space') {
+      if (S.mission === 'space' || S.mission === 'mothership') {
         var hb = Math.sin(S.t * 2.4) * 4;
         ctx.save();
         ctx.translate(f.hero.x, f.hero.y + hb);
@@ -267,10 +318,24 @@
 
     // health
     W.drawHealthBar(ctx, 20, 20, 240, f.hero.hp / f.hero.maxHp, PAL.sun, 'Bobby');
-    if (S.boss && f.enemies.indexOf(S.boss) >= 0) {
+    if (S.mission === 'megatron' && S.boss && f.enemies.indexOf(S.boss) >= 0) {
       W.drawHealthBar(ctx, 700, 20, 240, S.boss.hp / S.boss.maxHp, '#9A5FD6', 'MEGATRON');
+    } else if (S.mission === 'mothership') {
+      var mb = S.f.enemies.filter(function (e2) { return e2.mother; })[0];
+      W.drawHealthBar(ctx, 660, 20, 280, mb ? mb.hp / mb.maxHp : 0, '#E0455F', 'MOTHERSHIP');
     } else if (S.mission === 'space') {
       W.drawHealthBar(ctx, 700, 20, 240, S.wave / 10, '#9A5FD6', 'Waves ' + S.wave + '/10');
+    }
+
+    if (S.armedNext) {
+      var pulse2 = 0.55 + 0.45 * Math.sin(S.t * 7);
+      ctx.save();
+      ctx.globalAlpha = pulse2;
+      C.textCached(ctx, '!  THE MOTHERSHIP COMES  —  press E  !', 480, 120, {
+        size: 24, align: 'center', color: '#E0455F',
+        outline: 4, outlineColor: PAL.white, seed: 'msarm'
+      });
+      ctx.restore();
     }
 
     C.textCached(ctx, 'arrows move  ·  Z shoot  ·  X go home', 480, 578, {

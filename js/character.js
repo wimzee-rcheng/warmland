@@ -46,6 +46,10 @@
     critter: {
       name: 'Quiet Critter', body: 'pom', googly: true, fur: '#C94FD6', small: true
     },
+    pet: {
+      name: 'Fluff', body: 'pup',
+      fur: '#F2D5A0', ear: '#E8A05C', nose: '#8A5A2B'
+    },
     // The park crowd. Same cup silhouette, tinted per instance.
     npc: {
       name: 'Someone', body: 'cup', head: 'bear',
@@ -61,7 +65,8 @@
     cup:       { w: 120, h: 170, ax: 60, ay: 148 },
     mech:      { w: 160, h: 210, ax: 80, ay: 190 },
     butterfly: { w: 164, h: 140, ax: 82, ay: 116 },
-    pom:       { w: 80,  h: 84,  ax: 40, ay: 70 }
+    pom:       { w: 80,  h: 84,  ax: 40, ay: 70 },
+    pup:       { w: 96,  h: 84,  ax: 48, ay: 72 }
   };
 
   // ------------------------------------------------------------- colouring
@@ -453,6 +458,62 @@
     }
   }
 
+  // ------------------------------------------------------------- the pup
+
+  /* The pet: a floppy-eared bean of a puppy — clearly NOT a pom-pom. */
+  function drawPup(ctx, spec, dir, seed, t, frame) {
+    var by = -22;
+
+    // waggy tail (two baked positions via the frame)
+    var wag = frame % 2 ? 0.5 : -0.25;
+    C.arc(ctx, -26, by - 6, 12, Math.PI * (0.9 + wag * 0.2), Math.PI * (1.5 + wag * 0.2), {
+      seed: seed + 'tail' + (frame % 2), stroke: spec.ear, lw: 5, wob: 0.8
+    });
+
+    // stubby legs
+    for (var l = 0; l < 2; l++) {
+      C.line(ctx, -12 + l * 22, by + 14, -12 + l * 22, by + 22, {
+        seed: seed + 'leg' + l, stroke: spec.ear, lw: 5, wob: 0.5, passes: 1
+      });
+    }
+
+    // bean body
+    C.ellipse(ctx, -4, by, 24, 17, {
+      seed: seed + 'body', fill: spec.fur, stroke: PAL.outline,
+      lw: 2.8, hatch: 3, wash: 0.75, wob: 1
+    });
+    // rump patch
+    C.ellipse(ctx, -16, by - 4, 8, 6, {
+      seed: seed + 'patch', fill: spec.ear, stroke: null, hatch: 2.2, wash: 0.7
+    });
+
+    // head, forward of the body
+    var hx = 16;
+    C.ellipse(ctx, hx, by - 10, 15, 13, {
+      seed: seed + 'head', fill: spec.fur, stroke: PAL.outline,
+      lw: 2.8, hatch: 2.8, wash: 0.78, wob: 0.9
+    });
+    // floppy ears
+    for (var e = -1; e <= 1; e += 2) {
+      C.ellipse(ctx, hx + e * 11, by - 16, 5.5, 9, {
+        seed: seed + 'ear' + e, fill: spec.ear, stroke: PAL.outline,
+        lw: 2.2, hatch: 2.4, wash: 0.8, rot: e * 0.5
+      });
+    }
+
+    if (dir === 'up') return;
+    var fx = dir === 'left' ? -3 : dir === 'right' ? 3 : 0;
+    C.dot(ctx, hx + fx - 4, by - 12, 2.2, PAL.outline, seed + 'eye1');
+    C.dot(ctx, hx + fx + 5, by - 12, 2.2, PAL.outline, seed + 'eye2');
+    C.ellipse(ctx, hx + fx + 1, by - 6, 3.4, 2.6, {
+      seed: seed + 'nose', fill: spec.nose, stroke: PAL.outline, lw: 1.4, wash: 0.9, hatch: 2, wob: 0.4
+    });
+    // a happy tongue
+    C.line(ctx, hx + fx + 1, by - 3, hx + fx + 3, by + 2, {
+      seed: seed + 'tongue', stroke: '#E8578F', lw: 3, wob: 0.5, passes: 1
+    });
+  }
+
   // ------------------------------------------------------------- the mech
 
   /* Boba Bear Bot (IMG_8455): bear head, straw antenna, boba tank backpack
@@ -559,6 +620,8 @@
     ctx.translate(tile.ax, tile.ay);
     if (body === 'butterfly') {
       drawButterfly(ctx, spec, dir, seed, t, (frame % 4) / 3);
+    } else if (body === 'pup') {
+      drawPup(ctx, spec, dir, seed, t, frame);
     } else if (body === 'pom') {
       drawPom(ctx, spec, dir, seed, t);
     } else if (body === 'mech') {

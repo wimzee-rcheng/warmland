@@ -77,12 +77,14 @@ everywhere (even into vehicles), loves treats from the shop, and has its own
 little bed in the bedroom.
 
 **Every day** — three gentle **Today's Ideas** (tracked on the bedroom ideas
-board, with stickers for perfect days), a rolled **weather** (sunny, rainy,
-snowy, or a lucky RAINBOW day that doubles crystal odds), letters in the
-mailbox, and one-time **NEW!** celebrations for every first.
+board, with stickers for perfect days), rolled **weather** — rain and snow
+fall, rainbows arc and double crystal luck, but colors never darken (day 1 is
+always sunny) — letters in the mailbox, and one-time **NEW!** celebrations
+for every first.
 
 **Around the yard** — a three-plot **garden**: buy seeds at the shop, plant,
-water once a day, harvest vegetables straight into the cooking loop. At the
+and water as much as you like — each watering grows it a stage, no waiting
+for tomorrow. Harvest vegetables straight into the cooking loop. At the
 park pond, **go fishing** — watch the bobber, strike on the "!", and reel in
 fish for fish dinner (or an old boot, or... a tiny UFO).
 
@@ -115,7 +117,9 @@ fly or drive over the neighbourhood map. Land on a pad to arrive somewhere.
   fill the bedroom **trophy case**, and are collected in **Bobby's treasure
   book** (open the case empty-handed)
 - **SPACE** (UFO only) → free flight over planets and stars; the pulsing
-  **INVASION** pad starts the alien battle, fought from inside the UFO
+  **INVASION** pad starts the alien battle, fought from inside the UFO — and
+  stopping the invasion summons **THE MOTHERSHIP** (press `E`) for the real
+  boss fight
 
 **The mech mission** — wear the Boba Bear Bot to the park, press `T` to become a
 boba cart, and set up at the pitch. Customers queue; serve five and a **SPECIAL
@@ -127,7 +131,7 @@ build it. Then climb up whenever you like.
 
 ## Testing
 
-Open `tests.html`. It drives the game with scripted input and checks **540**
+Open `tests.html`. It drives the game with scripted input and checks **546**
 things across movement, cooking, lights, sleep, friends, suits, vehicles, jobs,
 missions, crystals, saving, the consistency of every room and map, plus
 regression suites from a full audit and a gameplay-feel pass (save-guard,

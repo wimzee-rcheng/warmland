@@ -1051,11 +1051,20 @@
     C.text(ctx, 'FLUFFS', x + 30, y - 4, {
       size: 10, align: 'center', color: PAL.white, outline: 2, outlineColor: PAL.outline, seed: s + 't2'
     });
-    // a fluff peeking out (until adopted)
+    // a pup peeking out (until adopted)
     if (W.game && !W.game.state.pet) {
-      C.dot(ctx, x + 30, y - 34, 10, '#E8B23D', s + 'fluff');
-      C.dot(ctx, x + 26, y - 36, 2.2, PAL.outline, s + 'fe1');
-      C.dot(ctx, x + 34, y - 36, 2.2, PAL.outline, s + 'fe2');
+      C.ellipse(ctx, x + 30, y - 34, 11, 9, {
+        seed: s + 'pup', fill: '#F2D5A0', stroke: PAL.outline, lw: 2, hatch: 2.4, wash: 0.8
+      });
+      C.ellipse(ctx, x + 21, y - 39, 4, 6, {
+        seed: s + 'pe1', fill: '#E8A05C', stroke: PAL.outline, lw: 1.6, hatch: 2, wash: 0.8, rot: -0.5
+      });
+      C.ellipse(ctx, x + 39, y - 39, 4, 6, {
+        seed: s + 'pe2', fill: '#E8A05C', stroke: PAL.outline, lw: 1.6, hatch: 2, wash: 0.8, rot: 0.5
+      });
+      C.dot(ctx, x + 26, y - 35, 1.8, PAL.outline, s + 'fe1');
+      C.dot(ctx, x + 34, y - 35, 1.8, PAL.outline, s + 'fe2');
+      C.dot(ctx, x + 30, y - 31, 2.2, '#8A5A2B', s + 'fn');
     }
   }};
 

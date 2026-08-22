@@ -45,9 +45,11 @@
       crystalsFound: {},     // crystal type -> count ever found
       weather: 'sunny',      // rolled per day
       pet: null,             // { name } once adopted
+      petHome: null,         // a room where the pet waits, or null = following
       petFedDay: 0,
       friendship: {},        // friend -> hearts (0..3)
       decor: {},             // room -> [prop kinds placed]
+      saveSalt: Math.floor(Math.random() * 1e9),   // varies weather etc. per game
       job: null              // live only — jobs end on room change, never saved
     };
   }
@@ -56,6 +58,7 @@
     ctx: ctx, W: LW, H: LH, t: 0,
     DAYNIGHT: false,        // the day/night cycle is parked for now
     WEATHER_ON: true,       // weather is decorative only: particles, no tinting
+    SCENE_TINTS: false,     // master switch: NOTHING may darken the scene
     paused: false,          // harness/test parking brake for the rAF loop
     userPaused: false,      // the player's P key
     bobaFx: null,           // { kind, until } — live only, it's a sugar rush
@@ -107,8 +110,9 @@
   function rollWeather() {
     if (G.state.weatherDay === G.state.day) return;   // already rolled (or pinned)
     G.state.weatherDay = G.state.day;
-    if (!G.WEATHER_ON) { G.state.weather = 'sunny'; return; }
-    var rnd = W.mulberry32(W.hash('weather' + G.state.day))();
+    if (!G.WEATHER_ON || G.state.day <= 1) { G.state.weather = 'sunny'; return; }
+    // salted per save — an unsalted seed made day 1 rain in EVERY new game
+    var rnd = W.mulberry32(W.hash('weather' + G.state.day + (G.state.saveSalt || 0)))();
     G.state.weather = WEATHERS[Math.floor(rnd * WEATHERS.length)];
   }
 
@@ -137,11 +141,12 @@
     }
   };
 
-  /* One-time celebrations. Returns true the first time only. */
+  /* One-time celebrations. Returns true the first time only.
+   * Half-length banner: a cheer, not a lecture. */
   G.first = function (id, label) {
     if (G.state.firsts[id]) return false;
     G.state.firsts[id] = true;
-    G.showBanner('NEW!', label);
+    G.showBanner('NEW!', label, 2.5);
     if (W.audio) W.audio.play('win');
     return true;
   };
@@ -227,8 +232,8 @@
     G.overlayName = '';
   };
 
-  G.showBanner = function (title, sub) {
-    G.banner = { title: title, sub: sub };
+  G.showBanner = function (title, sub, life) {
+    G.banner = { title: title, sub: sub, life: life || 5 };
     G.bannerT = 0;
   };
 
@@ -281,7 +286,7 @@
 
     if (G.banner) {
       G.bannerT += dt;
-      if (G.bannerT > 5) G.banner = null;   // long enough to actually read
+      if (G.bannerT > (G.banner.life || 5)) G.banner = null;
     }
 
     if (W.input.hit('mute') && W.audio) W.audio.toggleMute();

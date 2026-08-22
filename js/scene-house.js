@@ -304,20 +304,20 @@
     // whoever is following Bobby comes along — behind him if there's room,
     // otherwise anywhere walkable (a blind offset used to strand them out of
     // bounds at edge-of-room spawns, frozen forever)
-    // the pet comes everywhere, riding one slot behind the whole party
-    if (st.pet) {
+    // the pet comes everywhere — unless it's been told to stay in a room
+    if (st.pet && (!st.petHome || st.petHome === name)) {
       var pang = Math.PI * 0.6;
       var petx = S.spawnX + Math.cos(pang) * 46, pety = S.spawnY + Math.sin(pang) * 40;
       if (!W.canStand(room, solids, petx, pety)) {
         var pp = spot('pet'); petx = pp[0]; pety = pp[1];
       }
       var pet = new W.Actor({
-        char: 'critter', tint: '#E8B23D', x: petx, y: pety, speed: 175, mood: PAL.accent
+        char: 'pet', x: petx, y: pety, speed: 175, mood: PAL.accent
       });
       pet.isPet = true;
       pet.name = st.pet.name;
-      pet.scale = 0.7;
-      pet.mode = 'follow';
+      pet.scale = 0.9;
+      pet.mode = st.petHome ? 'wander' : 'follow';
       pet.data.slot = st.party.length;       // trots at the back of the line
       pet.data.chatIn = 6 + Math.random() * 8;
       out.push(pet);
@@ -796,30 +796,27 @@
         }
       }
 
-      if (!S.prompt) {
-        var best = null, bestD = 70;
-        for (var n = 0; n < S.npcs.length; n++) {
-          var np = S.npcs[n];
-          var dd = Math.hypot(np.x - px, np.y - py);
-          if (dd < bestD) { bestD = dd; best = np; }
-        }
-        if (best) {
-          S.talkTo = best;
-          if (best.isPet) {
-            var hasTreat = W.basket.has('treat');
-            S.prompt = { text: hasTreat ? 'Give ' + best.name + ' a treat' : 'Pet ' + best.name, locked: false };
-          } else {
-            var fdef = W.FRIENDS[best.friendKey];
-            var giftable = fdef && fdef.likes && W.basket.has(fdef.likes);
-            var following = best.friendKey && G.state.party.indexOf(best.friendKey) >= 0;
-            S.giftTo = giftable ? best : null;
-            S.prompt = giftable
-              ? { text: 'Give ' + best.name + ' the ' + W.ITEMS[fdef.likes].name + '!', locked: false }
-              : following
-                ? { text: 'chat', locked: false, key2: 'X', label2: 'say Dee' }
-                : { text: 'Say Trix to ' + best.name, locked: false };
-          }
-        }
+      // the nearest soul is tracked ALWAYS (X-stay/X-Dee work off it even
+      // when the visible prompt is something else)
+      var best = null, bestD = 70;
+      for (var n = 0; n < S.npcs.length; n++) {
+        var np = S.npcs[n];
+        var dd = Math.hypot(np.x - S.player.x, np.y - S.player.y);
+        if (dd < bestD) { bestD = dd; best = np; }
+      }
+      S.talkTo = best;
+
+      // friends outrank the drink/drop fallback (meeting someone matters)...
+      if (!S.prompt && best && !best.isPet) {
+        var fdef = W.FRIENDS[best.friendKey];
+        var giftable = fdef && fdef.likes && W.basket.has(fdef.likes);
+        var following = best.friendKey && G.state.party.indexOf(best.friendKey) >= 0;
+        S.giftTo = giftable ? best : null;
+        S.prompt = giftable
+          ? { text: 'Give ' + best.name + ' the ' + W.ITEMS[fdef.likes].name + '!', locked: false }
+          : following
+            ? { text: 'chat', locked: false, key2: 'X', label2: 'say Dee' }
+            : { text: 'Say Trix to ' + best.name, locked: false };
       }
 
       if (!S.prompt && W.basket.count() > 0) {
@@ -828,8 +825,28 @@
           ? { text: 'Drink the Boba!', locked: false }
           : { text: 'Put down the ' + W.ITEMS[last].name, locked: false };
         S.fallback = last;
+        // the pup trots close by ALL the time — it must never mask the
+        // basket actions, so its X option rides along on the same pill
+        if (best && best.isPet) {
+          S.prompt.key2 = 'X';
+          S.prompt.label2 = G.state.petHome ? 'come along' : 'stay here';
+        }
       } else {
         S.fallback = null;
+      }
+
+      // ...but the pup gets the prompt to itself when your hands are empty
+      if (!S.prompt && best && best.isPet) {
+        var hasTreat = W.basket.has('treat');
+        S.prompt = {
+          text: hasTreat ? 'Give ' + best.name + ' a treat' : 'Pet ' + best.name,
+          locked: false,
+          key2: 'X',
+          label2: G.state.petHome ? 'come along' : 'stay here'
+        };
+        S.petPrompt = true;
+      } else {
+        S.petPrompt = !!(S.fallback && best && best.isPet) ? false : false;
       }
     }
 
@@ -851,6 +868,14 @@
           if (W.audio) W.audio.play('pickup');
         } else {
           W.say('The basket is full!');
+        }
+      } else if (S.fallback && (!S.talkTo || S.talkTo.isPet)) {
+        if (S.fallback === 'boba') drinkBoba();
+        else if (S.player.jumpT > 0) {
+          // dropping mid-jump could maroon an item on a door mat
+        } else {
+          var did2 = W.dropped.drop(S.name, S.player.x, S.player.y);
+          if (did2) W.say('There. Safe on the floor.');
         }
       } else if (S.talkTo) {
         if (S.talkTo.isPet) {
@@ -883,7 +908,22 @@
 
     // ------- X: stop the thing (dismiss a follower, clock off a job)
     if (W.input.hit('back')) {
-      if (S.talkTo && S.talkTo.friendKey &&
+      if (S.talkTo && S.talkTo.isPet) {
+        // the pup can wait at home instead of tagging along
+        if (G.state.petHome) {
+          G.state.petHome = null;
+          S.talkTo.mode = 'follow';
+          S.talkTo.data.slot = G.state.party.length;
+          S.talkTo.says('*zoomies!*', 2.2);
+          W.say(S.talkTo.name + ' is coming along!');
+        } else {
+          G.state.petHome = S.name;
+          S.talkTo.mode = 'wander';
+          S.talkTo.says('*curls up*', 2.4);
+          W.say(S.talkTo.name + ' will wait here for you.');
+        }
+        if (W.audio) W.audio.play('blip');
+      } else if (S.talkTo && S.talkTo.friendKey &&
           G.state.party.indexOf(S.talkTo.friendKey) >= 0) {
         W.dismiss(S.talkTo, S.name);
         W.renumberParty(S.npcs);
@@ -958,7 +998,7 @@
 
     W.fx.draw(ctx);
 
-    if (S.room.outdoor) {
+    if (S.room.outdoor && G.SCENE_TINTS) {
       var tint = G.PHASE_TINT[G.phase4()];
       if (tint.alpha > 0) {
         ctx.save();
@@ -968,8 +1008,10 @@
         ctx.fillRect(0, 0, 960, 600);
         ctx.restore();
       }
-      // weather is decoration only — particles and the rainbow, never a
-      // colour wash (tinting made everything read as gloom)
+    }
+    // weather is decoration only — particles and the rainbow, never a
+    // colour wash (tinting made everything read as gloom)
+    if (S.room.outdoor) {
       if (G.state.weather === 'rainbow') {
         if (!S.rainbowTile) {
           S.rainbowTile = C.offscreen(400, 180);
@@ -991,10 +1033,11 @@
     // disco boba: a gentle hue party. A plain source-over wash — the old
     // 'overlay' composite fell off the renderer's fast path at ~84ms/frame.
     if (G.bobaFx && G.bobaFx.kind === 'disco') {
+      // bright pastel hues only — the party must never DARKEN the room
       var hue = (G.t * 60) % 360;
       ctx.save();
-      ctx.globalAlpha = 0.15 + 0.05 * Math.sin(G.t * 6);
-      ctx.fillStyle = 'hsl(' + hue + ', 85%, 60%)';
+      ctx.globalAlpha = 0.10 + 0.03 * Math.sin(G.t * 6);
+      ctx.fillStyle = 'hsl(' + hue + ', 90%, 78%)';
       ctx.fillRect(0, 0, 960, 600);
       ctx.restore();
     }

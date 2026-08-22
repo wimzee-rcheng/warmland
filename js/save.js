@@ -29,7 +29,7 @@
                 'platesAway', 'builtTreehouse', 'missions', 'treasures', 'mechForm',
                 'plates', 'dropped', 'friendRooms', 'crystalsCarried',
                 'ideas', 'firsts', 'mail', 'ideaStickers', 'crystalsFound',
-                'weather', 'weatherDay', 'pet', 'petFedDay', 'friendship', 'decor'];
+                'weather', 'weatherDay', 'pet', 'petHome', 'petFedDay', 'friendship', 'decor', 'saveSalt'];
 
   function pack() {
     var st = W.game.state, out = {};

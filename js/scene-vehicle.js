@@ -199,8 +199,8 @@
     // the pet rides shotgun
     if (G.state.pet) {
       W.drawChar(ctx, 30, r.y + 12, {
-        char: 'critter', tint: '#E8B23D', dir: 'down', t: G.t,
-        scale: r.scale * 0.5, noShadow: true
+        char: 'pet', dir: 'down', t: G.t,
+        scale: r.scale * 0.7, noShadow: true
       });
     }
     // passengers peeking out
@@ -216,8 +216,8 @@
 
     W.fx.draw(ctx);
 
-    // the time of day washes over outdoor maps
-    if (S.map.outdoor) {
+    // the time of day washes over outdoor maps (parked behind the master switch)
+    if (S.map.outdoor && G.SCENE_TINTS) {
       var tint = G.PHASE_TINT[G.phase4()];
       if (tint.alpha > 0) {
         ctx.save();

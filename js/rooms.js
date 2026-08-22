@@ -124,7 +124,7 @@
         { kind: 'path',    x: 366, y: 212 },
         { kind: 'house',   x: 340, y: 150 },
         { kind: 'tree',    x: 140, y: 250, buildable: true },
-        { kind: 'tree',    x: 856, y: 210 },
+        { kind: 'tree',    x: 862, y: 260 },
         { kind: 'mailbox', x: 300, y: 292, tint: '#4F8FD6' },
         { kind: 'mailbox', x: 300, y: 352, tint: '#F2C14E' },
         { kind: 'trashCan', x: 560, y: 300 },
@@ -136,7 +136,7 @@
         { kind: 'flower',  x: 320, y: 520, tint: '#E8A0B4' },
         { kind: 'ufo',     x: 600, y: 424 },
         { kind: 'car',     x: 120, y: 452 },
-        { kind: 'balloon', x: 640, y: 236 }
+        { kind: 'balloon', x: 745, y: 178 }
       ],
       doors: [
         { x: 434, y: 218, w: 66, h: 34, to: 'living', spawn: [484, 512], art: 'mat', label: 'Go Inside' },
@@ -152,7 +152,7 @@
         { kind: 'garden', id: 'plotC', x: 620, y: 360, w: 70, h: 48 },
         { kind: 'vehicle', vehicle: 'ufo',     x: 600, y: 500, w: 170, h: 44 },
         { kind: 'vehicle', vehicle: 'car',     x: 120, y: 520, w: 150, h: 44 },
-        { kind: 'vehicle', vehicle: 'balloon', x: 640, y: 236, w: 130, h: 60 },
+        { kind: 'vehicle', vehicle: 'balloon', x: 745, y: 178, w: 130, h: 60 },
         { kind: 'tree',    x: 136, y: 294, w: 72, h: 44 }
       ]
     },

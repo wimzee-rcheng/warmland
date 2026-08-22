@@ -356,13 +356,13 @@
     var key = title + '|' + (sub || '');
     var tile = bannerTiles[key];
     if (!tile) {
-      var cv = C.offscreen(600, 150);
+      var cv = C.offscreen(560, 126);
       var g = cv.getContext('2d');
-      C.roundRect(g, 10, 10, 580, 124, 20, {
-        seed: 'bn', fill: PAL.white, stroke: PAL.outline, lw: 4, hatch: 5, wash: 0.92, fillAlpha: 0.2
+      C.roundRect(g, 8, 8, 544, 108, 18, {
+        seed: 'bn', fill: PAL.white, stroke: PAL.outline, lw: 4, hatch: 5, wash: 0.78, fillAlpha: 0.18
       });
-      C.text(g, title, 300, 76, {
-        size: 46, align: 'center', color: PAL.roof, outline: 5, outlineColor: PAL.outline, seed: 'bt' + title
+      C.text(g, title, 280, 62, {
+        size: 44, align: 'center', color: PAL.roof, outline: 5, outlineColor: PAL.outline, seed: 'bt' + title
       });
       if (sub) {
         // long subs (three ideas joined) wrap to two lines inside the card
@@ -375,7 +375,7 @@
         });
         if (cur) lines.push(cur);
         lines.slice(0, 2).forEach(function (ln, i) {
-          C.text(g, ln, 300, 104 + i * 20, {
+          C.text(g, ln, 280, 88 + i * 19, {
             size: 16, align: 'center', color: PAL.furDark, seed: 'bs' + i + ln
           });
         });
@@ -388,8 +388,8 @@
     ctx.save();
     ctx.translate(480, 250);
     ctx.scale(0.6 + pop * 0.4, 0.6 + pop * 0.4);
-    ctx.globalAlpha = pop;
-    ctx.drawImage(tile, -300, -75);
+    ctx.globalAlpha = pop * 0.92;      // a touch see-through, less of a wall
+    ctx.drawImage(tile, -280, -63);
     ctx.restore();
   };
 

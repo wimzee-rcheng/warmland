@@ -892,6 +892,35 @@
     }
     check('the day has weather', ['sunny','rainy','snowy','rainbow'].indexOf(G.state.weather) >= 0);
 
+    // day 1 of a fresh game is ALWAYS sunny (first impressions)
+    var savedState = G.state;
+    G.state = G.freshState();
+    G.ensureIdeas();
+    check('a brand-new day 1 is sunny', G.state.weather === 'sunny', G.state.weather);
+    G.state = savedState;
+
+    // beating the invasion arms the MOTHERSHIP via E
+    G.go('mission', { mission: 'space' }); steps(2);
+    var MM = W.sceneMission;
+    MM.wave = 10;
+    MM.f.enemies.length = 0;
+    steps(3);
+    check('clearing the waves arms the event', MM.armedNext === true);
+    press('special'); steps(3);
+    check('E summons the mothership', MM.mission === 'mothership' &&
+      MM.f.enemies.some(function (e2) { return e2.mother; }));
+    var mboss = MM.f.enemies.filter(function (e2) { return e2.mother; })[0];
+    mboss.hp = 1;
+    MM.f.shots.push({ x: mboss.x, y: mboss.y, vx: 0, vy: 0, r: 10, life: 1 });
+    MM.lock = 0;
+    steps(3);
+    check('the core takes boba damage', !MM.f.enemies.some(function (e2) { return e2.mother; }));
+    secs(0.2);
+    check('downing it wins', MM.f.over === 'win');
+    secs(2.6);
+    check('the mothership mission records', G.state.missions.mothership === true);
+    secs(1.4);
+
     // the garden: buy seeds, plant, water across sleeps, harvest
     G.state.money = 10;
     G.state.basket = [];
@@ -903,14 +932,11 @@
     var plot = station('garden');
     standAt(plot); W.dialogue.active = false; press('act');
     check('planting takes the seeds', plot.s.stage === 1 && !W.basket.has('seeds'));
-    G.state.day++;
-    standAt(plot); W.dialogue.active = false; press('act');
-    check('day-2 watering sprouts it', plot.s.stage === 2);
-    W.dialogue.active = false; press('act');
-    check('same-day watering does nothing more', plot.s.stage === 2);
-    G.state.day++;
-    standAt(plot); W.dialogue.active = false; press('act');
-    check('day-3 watering grows it', plot.s.stage === 3);
+    // water as fast as you like — no waiting for tomorrow
+    W.dialogue.active = false; press('act'); secs(1.6);
+    check('watering sprouts it right away', plot.s.stage === 2);
+    W.dialogue.active = false; press('act'); secs(1.6);
+    check('watering again grows it', plot.s.stage === 3);
     W.dialogue.active = false; press('act');
     check('the harvest lands in the basket',
       W.basket.count() >= 1 && plot.s.stage === 0, W.basket.list().join(','));
@@ -940,6 +966,31 @@
     G.go('house', { room: 'kitchen' }); steps(2); secs(0.4);
     var pet2 = H.npcs.filter(function (a) { return a.isPet; })[0];
     check('the pet follows to other rooms', !!pet2);
+    // the trailing pup must never mask the basket actions
+    var pp0 = H.npcs.filter(function (a) { return a.isPet; })[0];
+    G.state.basket = ['boba'];
+    H.player.x = 480; H.player.y = 330;
+    pp0.x = 500; pp0.y = 340; steps(2);          // right on his heels
+    check('drink still offered with the pup close', /Drink/.test(H.prompt.text), H.prompt.text);
+    W.dialogue.active = false; press('act');
+    check('and Z drinks, not pets', !W.basket.has('boba') && !!G.bobaFx);
+    G.bobaFx = null;
+    G.state.basket = [];
+
+    // X tells the pup to stay; X again brings it along
+    var pp = H.npcs.filter(function (a) { return a.isPet; })[0];
+    H.player.x = pp.x; H.player.y = pp.y + 30; steps(2);
+    W.dialogue.active = false; press('back');
+    check('X makes the pup stay', G.state.petHome === 'kitchen');
+    G.go('house', { room: 'living' }); steps(2);
+    check('the pup waits where told', !H.npcs.some(function (a) { return a.isPet; }));
+    G.go('house', { room: 'kitchen' }); steps(2);
+    var pp2 = H.npcs.filter(function (a) { return a.isPet; })[0];
+    check('...in its room', !!pp2);
+    H.player.x = pp2.x; H.player.y = pp2.y + 30; steps(2);
+    W.dialogue.active = false; press('back');
+    check('X again resumes following', G.state.petHome === null);
+
     G.state.money = 5;
     G.state.basket = [];
     G.go('house', { room: 'shop' }); steps(2); secs(0.4);
