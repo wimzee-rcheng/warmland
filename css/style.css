@@ -1,0 +1,36 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #2b2118;
+  overflow: hidden;
+  font-family: "Chalkboard SE", "Marker Felt", "Comic Sans MS", cursive;
+}
+
+#stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#game {
+  display: block;
+  width: 960px;
+  height: 600px;
+  transform-origin: center center;
+  image-rendering: auto;
+}
+
+/* The frame decoration lives on the wrapper, not the canvas — rounding and
+ * shadowing a texture that changes every frame forces re-composites. */
+#stage::before {
+  content: '';
+  position: absolute;
+  width: 960px;
+  height: 600px;
+  border-radius: 10px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
