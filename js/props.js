@@ -1229,7 +1229,7 @@
   }
 
   P.bulldozer = { w: 130, d: 46, h: 92, draw: function (ctx, x, y, s) {
-    shadow(ctx, x, y, 130, 46);
+    shadow(ctx, x, y - 40, 130, 46);
     tracks(ctx, x + 14, y, 104, s);
     C.roundRect(ctx, x + 30, y - 62, 74, 42, 8, {
       seed: s + 'bd', fill: '#F2C14E', stroke: PAL.outline, lw: 3.2, hatch: 3.6, wash: 0.75
@@ -1247,7 +1247,7 @@
   }};
 
   P.mixer = { w: 132, d: 46, h: 96, draw: function (ctx, x, y, s) {
-    shadow(ctx, x, y, 132, 46);
+    shadow(ctx, x, y - 34, 132, 46);
     C.roundRect(ctx, x + 10, y - 34, 112, 24, 8, {
       seed: s + 'ch', fill: '#5FA8D6', stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.75
     });
@@ -1271,7 +1271,7 @@
   }};
 
   P.crane = { w: 150, d: 50, h: 210, draw: function (ctx, x, y, s) {
-    shadow(ctx, x, y, 150, 50);
+    shadow(ctx, x, y - 44, 150, 50);
     tracks(ctx, x + 20, y, 100, s);
     C.roundRect(ctx, x + 34, y - 62, 72, 42, 8, {
       seed: s + 'cb', fill: '#E8834E', stroke: PAL.outline, lw: 3.2, hatch: 3.6, wash: 0.75
@@ -1293,7 +1293,7 @@
   }};
 
   P.toolbox = { w: 84, d: 40, h: 62, draw: function (ctx, x, y, s) {
-    shadow(ctx, x, y, 84, 40);
+    shadow(ctx, x, y - 36, 84, 40);
     var top = y - 62;
     C.roundRect(ctx, x, top + 18, 84, 44, 7, {
       seed: s + 'bx', fill: '#D9402F', stroke: PAL.outline, lw: 3.2, hatch: 3.6, wash: 0.75
@@ -1314,7 +1314,7 @@
 
   /* The wrecking ball, parked and waiting for a finished house. */
   P.wreckingBall = { w: 120, d: 46, h: 190, draw: function (ctx, x, y, s) {
-    shadow(ctx, x, y, 120, 46);
+    shadow(ctx, x, y - 40, 120, 46);
     tracks(ctx, x + 10, y, 90, s);
     C.roundRect(ctx, x + 20, y - 58, 64, 38, 8, {
       seed: s + 'cb', fill: '#B48FD6', stroke: PAL.outline, lw: 3.2, hatch: 3.6, wash: 0.75
@@ -1450,7 +1450,6 @@
 
   /* A snug den for the pom-poms, with three little doorways. */
   P.critterBox = { w: 96, d: 44, h: 74, draw: function (ctx, x, y, s) {
-    shadow(ctx, x, y, 96, 44);
     var top = y - 74;
     C.roundRect(ctx, x, top, 96, 74, 8, {
       seed: s + 'bx', fill: PAL.wood, stroke: PAL.woodDk, lw: 3.2, hatch: 3.6, wash: 0.8

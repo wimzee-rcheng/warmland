@@ -1444,40 +1444,99 @@
     standAt(cb); W.dialogue.active = false; press('act');
     secs(3);
     check('the critter box gets built', G.state.builds.critterBox === true);
-    check('and the critters move in', G.state.friendRooms.critterA === 'living');
+    check('but NOBODY moves in by magic', G.state.friendRooms.critterA !== 'living',
+      G.state.friendRooms.critterA);
+    // the move-in is a walk: Trix a pom-pom at the park, lead it home, Dee
+    G.state.party = ['critterA'];
+    G.go('house', { room: 'living' }); steps(2); secs(0.6);
+    var pom = H.npcs.filter(function (n) { return n.friendKey === 'critterA'; })[0];
+    check('the pom-pom follows Bobby home', !!pom);
+    H.player.x = pom.x; H.player.y = pom.y + 30; steps(2);
+    W.dialogue.active = false; press('back');       // say Dee = move in
+    check('saying Dee here moves it into the box',
+      G.state.friendRooms.critterA === 'living');
+    check('and it is a celebrated first', G.state.firsts.critterhome === true);
 
     // the building site: four machines, in order
     G.go('house', { room: 'site' }); steps(2); secs(0.4);
     function machine(kind) {
       return H.stations.filter(function (m) { return m.machine === kind; })[0];
     }
-    check('all four machines are on site',
-      !!machine('bulldozer') && !!machine('mixer') && !!machine('crane') && !!machine('toolbox'));
+    check('the three drivers are on site',
+      !!machine('bulldozer') && !!machine('mixer') && !!machine('crane'));
+    check('...and the toolbox is its own thing', !!station('toolbox'));
 
     var mx = machine('mixer');
     standAt(mx); W.dialogue.active = false; press('act');
-    check('the mixer waits its turn', !(mx.s.run > 0));
+    check('the mixer waits its turn', H.machineCtl === null);
     check('the house has not started', (G.state.builds.friendHouse || 0) === 0);
 
-    var order = ['bulldozer', 'mixer', 'crane', 'toolbox'];
-    for (var mi = 0; mi < order.length; mi++) {
-      G.go('house', { room: 'site' }); steps(2); secs(0.4);
-      var mstn = machine(order[mi]);
-      standAt(mstn); W.dialogue.active = false; press('act');
-      check(order[mi] + ' takes its turn', mstn.s.run > 0);
-      check('...and Bobby drives it out there', !!H.driving &&
-        H.driving.kind === order[mi], H.driving && H.driving.kind);
-      secs(2.2);
-      check('the machine gets to the site', H.driving && H.driving.phase === 'work',
-        H.driving && H.driving.phase);
-      secs(2.6);
-      check('stage ' + (mi + 1) + ' is done', G.state.builds.friendHouse === mi + 1,
-        G.state.builds.friendHouse);
-      secs(2.0);
-      check('and it parks itself again', H.driving === null);
-      check('Bobby is back on his feet', canWalk(20),
-        H.player.x.toFixed(0) + ',' + H.player.y.toFixed(0));
+    // ---- stage 1: the bulldozer, driven by hand, shoves the junk clear
+    G.go('house', { room: 'site' }); steps(2); secs(0.4);
+    var bd = machine('bulldozer');
+    standAt(bd); W.dialogue.active = false; press('act');
+    check('Z puts Bobby at the wheel', !!H.machineCtl && H.machineCtl.kind === 'bulldozer');
+    check('five junk piles wait on the lot', H.machineCtl.junk.length === 5);
+    // shove each pile straight off the lot by driving through it
+    H.machineCtl.junk.forEach(function (jk) {
+      H.machineCtl.x = jk.x; H.machineCtl.y = jk.y - 30;
+      hold('down', true);
+      for (var f2 = 0; f2 < 90 && !jk.cleared; f2++) {
+        H.machineCtl.x = jk.x; steps(1);
+      }
+      hold('down', false);
+    });
+    check('pushing every pile off finishes the job',
+      G.state.builds.friendHouse === 1, G.state.builds.friendHouse);
+    secs(1.2);
+    check('and Bobby hops down', H.machineCtl === null);
+    check('...somewhere he can walk', canWalk(20));
+
+    // ---- stage 2: the mixer pours while Z is held over the lot
+    G.go('house', { room: 'site' }); steps(2); secs(0.4);
+    var mx2 = machine('mixer');
+    standAt(mx2); W.dialogue.active = false; press('act');
+    check('the mixer takes the wheel', !!H.machineCtl && H.machineCtl.kind === 'mixer');
+    H.machineCtl.x = 480; H.machineCtl.y = 330;    // over the lot
+    hold('act', true); secs(2);
+    var midPour = H.machineCtl.pour;
+    check('holding Z pours', midPour > 0.2 && midPour < 1, midPour);
+    H.machineCtl.x = 100; H.machineCtl.y = 500; steps(5);   // off the lot
+    check('pouring only works over the lot',
+      H.machineCtl.pour - midPour < 0.15, H.machineCtl.pour);
+    H.machineCtl.x = 480; H.machineCtl.y = 330; secs(3);
+    hold('act', false);
+    check('a full pour banks the stage', G.state.builds.friendHouse === 2);
+    secs(1.2); steps(2);
+
+    // ---- stage 3: the crane carries panels one at a time
+    G.go('house', { room: 'site' }); steps(2); secs(0.4);
+    var cr3 = machine('crane');
+    standAt(cr3); W.dialogue.active = false; press('act');
+    check('the crane takes the wheel', !!H.machineCtl && H.machineCtl.kind === 'crane');
+    for (var pn = 0; pn < 3; pn++) {
+      H.machineCtl.x = H.machineCtl.stack[0]; H.machineCtl.y = H.machineCtl.stack[1];
+      steps(2); W.dialogue.active = false; press('act');
+      check('panel ' + (pn + 1) + ' hooks on', H.machineCtl.carrying === true);
+      H.machineCtl.x = 480; H.machineCtl.y = 330; steps(2);
+      W.dialogue.active = false; press('act');
+      check('...and lowers onto the lot', H.machineCtl.placed === pn + 1);
     }
+    check('three walls bank the stage', G.state.builds.friendHouse === 3);
+    secs(1.2); steps(2);
+
+    // ---- stage 4: the roof goes on by hand, panel by panel
+    G.go('house', { room: 'site' }); steps(2); secs(0.4);
+    var tbx = station('toolbox');
+    check('the toolbox is its own station now', !!tbx);
+    for (var rp2 = 0; rp2 < 3; rp2++) {
+      standAt(tbx); W.dialogue.active = false; press('act');
+      check('panel ' + (rp2 + 1) + ' is in hand', W.hands.has('roofPanel'));
+      var hd2 = station('houseDoor');
+      standAt(hd2); W.dialogue.active = false; press('act');
+      check('...and gets nailed on', !W.hands.has('roofPanel'));
+    }
+    check('three panels finish the house', G.state.builds.friendHouse === 4);
     check('the friends move into their house', G.state.friendRooms.panda === 'friendhouse');
 
     // and the door works
@@ -1487,15 +1546,24 @@
     check('the front door opens', G.state.room === 'friendhouse');
     check('panda is home', H.npcs.some(function (n) { return n.friendKey === 'panda'; }));
 
-    // the wrecking ball puts it all back
+    // the wrecking ball is a drive too: three swings brings it down
     G.go('house', { room: 'site' }); steps(2); secs(0.4);
     var wb = station('wreckingBall');
     standAt(wb); W.dialogue.active = false; press('act');
-    check('the ball swings', wb.s.swing > 0);
-    secs(4.6);
-    check('the house comes down', G.state.builds.friendHouse === 0);
-    secs(2.0);
-    check('and the ball goes home', H.driving === null);
+    check('Bobby takes the wrecking ball', !!H.machineCtl && H.machineCtl.kind === 'wreckingBall');
+    // too far away: the swing refuses
+    H.machineCtl.x = 100; H.machineCtl.y = 550; steps(2);
+    W.dialogue.active = false; press('act'); steps(2);
+    check('swinging needs to be near the house', H.machineCtl.hits === 0);
+    // drive up and swing three times
+    H.machineCtl.x = 470; H.machineCtl.y = 430; steps(2);
+    for (var sw2 = 0; sw2 < 3; sw2++) {
+      W.dialogue.active = false; press('act');
+      secs(1.0);
+    }
+    check('three smashes bring the house down', G.state.builds.friendHouse === 0);
+    steps(3);
+    check('and Bobby is back on his feet', H.machineCtl === null);
     check('and the friends head back to the park', G.state.friendRooms.panda === 'park');
 
     // builds survive a save

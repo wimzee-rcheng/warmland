@@ -252,9 +252,12 @@
 
     if (G.phase === 'out' || G.phase === 'in') {
       // Bake queued poses behind the curtain, as many as fit in a slice, so
-      // the first walk through a crowded room doesn't stutter.
-      var budget = performance.now() + 9;
-      if (W.warmStep()) while (performance.now() + W.warmAvg() < budget + 9 && W.warmStep()) { /* keep going */ }
+      // the first walk through a crowded room doesn't stutter. The screen is
+      // covered — a fade frame is allowed to be slow, a gameplay frame isn't,
+      // so this budget is deliberately generous (music can ride a 25ms frame;
+      // it audibly skips on repeated 40ms ones during play).
+      var budget = performance.now() + 26;
+      if (W.warmStep()) while (performance.now() + W.warmAvg() < budget && W.warmStep()) { /* keep going */ }
     }
 
     if (G.phase === 'out') {
@@ -325,6 +328,12 @@
     W.input.endFrame();
   };
 
+  /* One thrown error must NEVER end the game: requestAnimationFrame only
+   * re-arms after step() returns, so an uncaught throw used to freeze the
+   * whole game solid — which a child reads as "it crashed". Catch, remember
+   * the error (so a grown-up can report it from the console), and keep
+   * going; if the same frame keeps dying, retreat to the living room. */
+  var errStreak = 0;
   function frame(now) {
     var dt = last ? Math.min((now - last) / 1000, 0.05) : 0.016;
     last = now;
@@ -338,7 +347,29 @@
       }
       W.input.endFrame();
     } else if (!G.paused) {
-      G.step(dt);
+      try {
+        G.step(dt);
+        errStreak = 0;
+      } catch (err) {
+        errStreak++;
+        G.lastError = String(err && err.stack || err);
+        if (console && console.error) console.error('Warmland frame error:', err);
+        try { window.localStorage.setItem('warmland.lastError', G.lastError); } catch (e2) {}
+        W.input.endFrame();               // a half-run frame must not leave keys wedged
+        if (errStreak === 1 && ctx.restore) {
+          // a throw between save/restore leaves the canvas transformed —
+          // unwind hard so the next frame draws sanely
+          for (var u = 0; u < 24; u++) ctx.restore();
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.globalAlpha = 1;
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        if (errStreak > 90) {
+          // the same frame has died for 1.5s straight — go somewhere safe
+          errStreak = 0;
+          try { G.go('house', { room: 'living' }); } catch (e3) {}
+        }
+      }
     }
     requestAnimationFrame(frame);
   }

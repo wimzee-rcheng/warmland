@@ -204,7 +204,7 @@
         }
         continue;
       }
-      if (!o.hit && dx < 44 && S.tumble <= 0) {
+      if (!o.hit && dx < 30 && dy > -34 && dy < 22 && S.tumble <= 0) {
         o.hit = true;
         S.tumble = 1.1;
         W.fx.dust(S.x, 440, 8);

@@ -33,7 +33,7 @@
    * like a new toy. */
   var POWERS = {
     dual:   { name: 'DUAL BLASTERS', sub: 'Two straws are better than one!' },
-    seeker: { name: 'HEAT-SEEKING STRAWS', sub: 'They find the saucers for you!' },
+    seeker: { name: 'HEAT-SEEKING BOBA', sub: 'It finds the saucers for you!' },
     bombs:  { name: 'BOBA BOMBS', sub: 'Every fourth shot goes BOOM!' }
   };
 
@@ -188,7 +188,7 @@
           en.y = 170 + Math.sin(en.t * 0.8) * 26;
           if (S.lock <= 0) en.fireIn -= dt;
           if (en.fireIn <= 0) {
-            en.fireIn = en.hp / en.maxHp > 0.5 ? 1.7 : 1.25;
+            en.fireIn = (en.hp / en.maxHp > 0.5 ? 1.7 : 1.25) * 0.5;   // the boss means it
             // a fan of three from the underlights
             for (var fs = -1; fs <= 1; fs++) {
               var fdx = (hero.x - en.x) / 300 + fs * 0.45;
@@ -211,7 +211,8 @@
           if (en.x < -80 || en.x > 1040) en.vx *= -1;
           if (S.lock <= 0) en.fireIn -= dt;
           if (en.fireIn <= 0) {
-            en.fireIn = 1.6 + Math.random() * 2;
+            // wave three shoots twice as often — it's the final wave
+            en.fireIn = (1.6 + Math.random() * 2) * (S.waveNum >= 3 ? 0.5 : 1);
             var dx = hero.x - en.x, dy = hero.y - en.y;
             var dd = Math.hypot(dx, dy) || 1;
             f.enemyFire(en.x, en.y + 14, (dx / dd) * 190, (dy / dd) * 190, 9);

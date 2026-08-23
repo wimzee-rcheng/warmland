@@ -73,6 +73,7 @@
     seeds:      { name: 'Seeds',      kind: 'supply',   color: '#C79A5E', icon: 'sack' },
     hoe:        { name: 'Hoe',        kind: 'tool',     color: '#8A5F38', icon: 'hoe' },
     stick:      { name: 'Marshmallow Stick', kind: 'tool', color: '#8A5F38', icon: 'stick' },
+    roofPanel:  { name: 'Roof Panel', kind: 'tool', color: '#C2633A', icon: 'panel' },
     smore:      { name: "S'more",     kind: 'dish',     color: '#C98F4E', icon: 'smore' },
     wateringCan:{ name: 'Watering Can', kind: 'tool',   color: '#5FBFD6', icon: 'can' },
     treat:      { name: 'Pet Treat',  kind: 'treasure', color: '#E8B23D', icon: 'balls' },
@@ -136,6 +137,13 @@
           C.dot(g, cx + r * 0.22, cy + r * 0.3, r * 0.09, '#8FD0EE', s + 'g2');
           C.dot(g, cx + r * 0.05, cy - r * 0.1, r * 0.09, '#8FD0EE', s + 'g3');
         }
+        break;
+      case 'panel':
+        C.poly(g, [[cx - r * 0.8, cy + r * 0.5], [cx, cy - r * 0.7], [cx + r * 0.8, cy + r * 0.5]], {
+          seed: s + 'pn', fill: col, stroke: PAL.outline, lw: 2.2, hatch: 2.8, wash: 0.8
+        });
+        C.line(g, cx - r * 0.4, cy + r * 0.3, cx + r * 0.4, cy + r * 0.3,
+          { seed: s + 'pl', stroke: PAL.outline, lw: 1.6, wob: 0.6, passes: 1 });
         break;
       case 'stick':
         C.line(g, cx - r * 0.7, cy + r * 0.8, cx + r * 0.4, cy - r * 0.5,

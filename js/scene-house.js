@@ -582,7 +582,7 @@
     S.seated = null;
     S.sleeping = null;
     S.riding = null;
-    S.driving = null;
+    S.machineCtl = null;
     S.mealSeq = null;
     S.mealCalled = false;
     S.idleT = 0; S.wiggleT = 0;
@@ -718,102 +718,248 @@
   };
 
   /* ---- the building site -------------------------------------------
-   * Pressing Z at a machine puts Bobby in the cab and DRIVES it to the
-   * house: out, work, back. The machine is the same baked sprite, blitted
-   * at an offset, so a moving digger costs no more than a parked one.
+   * Bobby drives the machines HIMSELF. Z at a machine climbs into the cab;
+   * arrows steer it around the site; each machine has its own little job:
+   *   bulldozer — shove the junk piles off the lot
+   *   mixer     — hold Z over the lot to pour the floor
+   *   crane     — Z hooks a wall panel, carry it over the lot, Z lowers it
+   *   wrecking  — Z near the house swings the ball; three hits = KABOOM
+   * X hops out anytime (the machine trundles back to its parking spot).
    */
-  // the machine parks in FRONT of the house so you can see it working
-  var SITE_TARGET = [470, 452];
-  var WORK_ART = [470, 384];
+  var LOT = { x: 370, y: 290, w: 220, h: 86 };     // the pegged-out plot
 
-  S.driveMachine = function (st, kind, onDone) {
-    if (S.driving) return false;
+  S.mountMachine = function (st, kind) {
+    if (S.machineCtl) return;
     var sp = null;
     for (var i = 0; i < S.sprites.length; i++) {
       if (S.sprites[i].kind === kind) { sp = S.sprites[i]; break; }
     }
-    S.driving = {
-      st: st, kind: kind, sprite: sp, onDone: onDone,
-      phase: 'out', t: 0, dx: 0, dy: 0,
-      home: [st.x + st.w / 2, st.y + st.h / 2],
-      done: false
+    var home = [st.x + st.w / 2, st.y + st.h / 2];
+    var ctl = {
+      st: st, kind: kind, sprite: sp,
+      x: home[0], y: home[1], home: home, face: 1,
+      exiting: 0, done: false
     };
+    // the per-machine job
+    if (kind === 'bulldozer') {
+      // junk starts ON the lot; push each pile clear of it
+      var rnd = W.mulberry32(W.hash('junk' + W.game.state.day));
+      ctl.junk = [];
+      for (var j = 0; j < 5; j++) {
+        ctl.junk.push({
+          x: LOT.x + 24 + rnd() * (LOT.w - 48),
+          y: LOT.y + 16 + rnd() * (LOT.h - 24),
+          cleared: false
+        });
+      }
+    } else if (kind === 'mixer') {
+      ctl.pour = 0;
+    } else if (kind === 'crane') {
+      ctl.placed = 0;
+      ctl.carrying = false;
+      ctl.stack = [700, 260];          // where the wall panels wait
+    } else if (kind === 'wreckingBall') {
+      ctl.hits = 0;
+      ctl.swing = 0;
+    }
+    S.machineCtl = ctl;
     if (W.audio) W.audio.play('thud');
     return true;
   };
 
-  function updateDrive(dt) {
-    var d = S.driving;
-    d.t += dt;
-    var hx = d.home[0], hy = d.home[1];
-    var tx = SITE_TARGET[0] - hx, ty = SITE_TARGET[1] - hy;
+  function exitMachine() {
+    var ctl = S.machineCtl;
+    S.machineCtl = null;
+    // the machine trundles home off-screen; Bobby hops down where it stood
+    var px = ctl.x, py = ctl.y + 44;
+    if (!W.canStand(S.room, S.solids, px, py)) {
+      var out = spotNear(px, py);
+      if (out) { px = out[0]; py = out[1]; }
+    }
+    S.player.x = px;
+    S.player.y = py;
+  }
 
-    if (d.phase === 'out') {
-      var k = Math.min(1, d.t / 1.6);
-      d.dx = tx * k; d.dy = ty * k;
-      if (Math.random() < dt * 14) W.fx.dust(hx + d.dx - 40, hy + d.dy + 16, 1);
-      if (k >= 1) { d.phase = 'work'; d.t = 0; if (W.audio) W.audio.play('hammer'); }
-    } else if (d.phase === 'work') {
-      d.dx = tx + Math.sin(d.t * 7) * (d.kind === 'bulldozer' ? 10 : 3);
-      d.dy = ty;
-      if (Math.random() < dt * 20) {
-        W.fx.dust(WORK_ART[0] + (Math.random() - 0.5) * 200,
-                  WORK_ART[1] + 30 + Math.random() * 20, 1);
-      }
-      if (d.t > 2.4) {
-        d.phase = 'back'; d.t = 0;
-        if (!d.done) { d.done = true; if (d.onDone) d.onDone(); }
-      }
-    } else {
-      var k2 = Math.min(1, d.t / 1.3);
-      d.dx = tx * (1 - k2); d.dy = ty * (1 - k2);
-      if (k2 >= 1) {
-        S.driving = null;
-        S.player.x = hx;
-        S.player.y = hy + 44;
-        if (!W.canStand(S.room, S.solids, S.player.x, S.player.y)) {
-          var out = spotNear(S.player.x, S.player.y);
-          if (out) { S.player.x = out[0]; S.player.y = out[1]; }
+  function updateMachine(dt) {
+    var ctl = S.machineCtl, G = W.game;
+    var a = W.input.axis();
+    var sp = ctl.kind === 'bulldozer' ? 150 : 170;
+    var mx = a[0] * sp * dt, my = a[1] * sp * dt;
+    var b = S.room.bounds;
+    ctl.x = W.clamp(ctl.x + mx, b.x + 40, b.x + b.w - 40);
+    ctl.y = W.clamp(ctl.y + my, b.y + 30, b.y + b.h - 10);
+    if (a[0]) ctl.face = a[0] > 0 ? 1 : -1;
+    ctl.moving = !!(a[0] || a[1]);
+    if (ctl.moving && Math.random() < dt * 8) W.fx.dust(ctl.x - ctl.face * 40, ctl.y + 16, 1);
+
+    var overLot = ctl.x > LOT.x - 10 && ctl.x < LOT.x + LOT.w + 10 &&
+                  ctl.y > LOT.y - 10 && ctl.y < LOT.y + LOT.h + 30;
+
+    // ---- the jobs
+    if (ctl.kind === 'bulldozer') {
+      var left = 0;
+      for (var j = 0; j < ctl.junk.length; j++) {
+        var jk = ctl.junk[j];
+        if (jk.cleared) continue;
+        left++;
+        // the blade shoves any pile it touches along the drive direction
+        if (Math.hypot(jk.x - ctl.x, jk.y - ctl.y) < 56 && ctl.moving) {
+          jk.x += mx * 1.6;
+          jk.y += my * 1.6;
+          if (Math.random() < dt * 10) W.fx.dust(jk.x, jk.y + 8, 1);
+          var onLot = jk.x > LOT.x - 14 && jk.x < LOT.x + LOT.w + 14 &&
+                      jk.y > LOT.y - 14 && jk.y < LOT.y + LOT.h + 14;
+          if (!onLot) {
+            jk.cleared = true;
+            left--;
+            W.fx.sparkle(jk.x, jk.y, 8, 50);
+            if (W.audio) W.audio.play('blip');
+          }
         }
       }
+      ctl.progress = 'Cleared ' + (5 - left) + '/5';
+      if (left === 0 && !ctl.done) { ctl.done = true; finishJob(); }
+    } else if (ctl.kind === 'mixer') {
+      if (W.input.down('act') && overLot) {
+        ctl.pour = Math.min(1, ctl.pour + dt / 4);
+        if (Math.random() < dt * 12) {
+          W.fx.dust(ctl.x + ctl.face * 40, ctl.y + 10, 1);
+        }
+        if (W.audio && Math.random() < dt * 2) W.audio.play('pour');
+      }
+      ctl.progress = 'Poured ' + Math.round(ctl.pour * 100) + '%';
+      if (ctl.pour >= 1 && !ctl.done) { ctl.done = true; finishJob(); }
+    } else if (ctl.kind === 'crane') {
+      ctl.nearStack = Math.hypot(ctl.stack[0] - ctl.x, ctl.stack[1] - ctl.y) < 90;
+      if (W.input.hit('act')) {
+        if (!ctl.carrying && ctl.nearStack && ctl.placed < 3) {
+          ctl.carrying = true;
+          if (W.audio) W.audio.play('clack');
+        } else if (ctl.carrying && overLot) {
+          ctl.carrying = false;
+          ctl.placed++;
+          W.fx.dust(ctl.x, ctl.y - 20, 5);
+          W.fx.sparkle(ctl.x, ctl.y - 60, 8, 50);
+          if (W.audio) W.audio.play('thud');
+        } else if (ctl.carrying) {
+          W.say('Lower it over the lot!');
+        } else if (ctl.placed < 3) {
+          W.say('The wall panels are stacked by the fence!');
+        }
+      }
+      ctl.progress = 'Walls ' + ctl.placed + '/3';
+      if (ctl.placed >= 3 && !ctl.done) { ctl.done = true; finishJob(); }
+    } else if (ctl.kind === 'wreckingBall') {
+      if (ctl.swing > 0) {
+        ctl.swing -= dt;
+        if (!ctl.boomed && ctl.swing < 0.4) {
+          ctl.boomed = true;
+          ctl.hits++;
+          W.fx.dust(LOT.x + 40 + Math.random() * 140, LOT.y + 30, 8);
+          S.shakeT = 0.3;
+          if (W.audio) W.audio.play('boom');
+          if (ctl.hits >= 3 && !ctl.done) {
+            ctl.done = true;
+            W.demolishHouse();
+            exitMachine();
+            return;
+          }
+        }
+      } else if (W.input.hit('act')) {
+        var nearHouse = Math.hypot((LOT.x + LOT.w / 2) - ctl.x, (LOT.y + LOT.h / 2) - ctl.y) < 220;
+        if (nearHouse) {
+          ctl.swing = 0.8;
+          ctl.boomed = false;
+        } else {
+          W.say('Drive closer to the house first!');
+        }
+      }
+      ctl.progress = 'Smashes ' + ctl.hits + '/3';
+    }
+
+    if (W.input.hit('back') && !ctl.done) {
+      W.say('Hopping down — the job can wait.');
+      exitMachine();
     }
   }
 
-  /* The load each machine is carrying, drawn over the work site. */
-  function drawMachineWork(ctx) {
-    var d = S.driving, G = W.game;
-    if (!d) return;
-    var wx = WORK_ART[0], wy = WORK_ART[1];
-    var working = d.phase === 'work';
-    if (d.kind === 'mixer' && working) {
-      // a grey stream of concrete pouring out of the drum
-      for (var i = 0; i < 5; i++) {
-        var t2 = (G.t * 2.2 + i / 5) % 1;
-        C.dot(ctx, wx + 40 - t2 * 30, wy - 40 + t2 * 66, 6 - t2 * 2, '#C4BCAE', 'pour' + i);
+  /* The job is done: bank the stage, then Bobby climbs down. */
+  function finishJob() {
+    var ctl = S.machineCtl;
+    W.advanceHouse();
+    // a beat to enjoy the sparkles before hopping out
+    ctl.doneT = 0.9;
+  }
+
+  /* Overlays the machine mode needs: junk, wet concrete, the hanging panel. */
+  var junkTile = null, panelTile = null;
+  function siteJobArt(ctx) {
+    var ctl = S.machineCtl, G = W.game;
+    if (!ctl) return;
+    if (ctl.kind === 'bulldozer') {
+      if (!junkTile) {
+        junkTile = C.offscreen(56, 40);
+        var g = junkTile.getContext('2d');
+        C.rect(g, 6, 16, 22, 12, { seed: 'jk1', fill: '#C4BCAE', stroke: PAL.outline, lw: 2.2, hatch: 2.6, wash: 0.8 });
+        C.rect(g, 24, 8, 20, 12, { seed: 'jk2', fill: PAL.wood, stroke: PAL.outline, lw: 2.2, hatch: 2.6, wash: 0.8 });
+        C.line(g, 10, 12, 26, 4, { seed: 'jk3', stroke: PAL.woodDk, lw: 4, wob: 1 });
       }
-    } else if (d.kind === 'crane' && working) {
-      // a wall panel swinging up on the hook
-      var lift = Math.min(1, d.t / 2.0);
-      C.rect(ctx, wx - 34, wy - 40 - lift * 90, 74, 46, {
-        seed: 'panel', fill: W.PAL.wood, stroke: W.PAL.outline, lw: 3, hatch: 3.6, wash: 0.75
-      });
-      C.line(ctx, wx + 3, wy - 40 - lift * 90, wx + 3, wy - 150, {
-        seed: 'cable', stroke: W.PAL.outline, lw: 2.4, wob: 0.8
-      });
-    } else if (d.kind === 'bulldozer' && working) {
-      // a heap of junk being shoved along
-      for (var r = 0; r < 5; r++) {
-        C.rect(ctx, wx - 90 + r * 16 + Math.sin(G.t * 7) * 6, wy + 6 + (r % 2) * 10, 18, 10, {
-          seed: 'junk' + r, fill: r % 2 ? '#C4BCAE' : W.PAL.wood,
-          stroke: W.PAL.outline, lw: 2, hatch: 2.6, wash: 0.75
-        });
+      for (var j = 0; j < ctl.junk.length; j++) {
+        if (!ctl.junk[j].cleared) ctx.drawImage(junkTile, ctl.junk[j].x - 28, ctl.junk[j].y - 24);
       }
-    } else if (d.kind === 'toolbox' && working) {
-      if (Math.random() < 0.25) W.fx.sparkle(wx + (Math.random() - 0.5) * 160, wy - 60, 1, 30);
+    } else if (ctl.kind === 'mixer' && ctl.pour > 0) {
+      // the slab fills with wet concrete as you pour
+      ctx.save();
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = '#C4BCAE';
+      ctx.fillRect(LOT.x + 4, LOT.y + 4, (LOT.w - 8) * ctl.pour, LOT.h - 4);
+      ctx.restore();
+    } else if (ctl.kind === 'crane') {
+      if (!panelTile) {
+        panelTile = C.offscreen(90, 60);
+        var g2 = panelTile.getContext('2d');
+        C.rect(g2, 8, 8, 74, 44, { seed: 'wp', fill: PAL.wood, stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.75 });
+        C.line(g2, 8, 30, 82, 30, { seed: 'wpl', stroke: PAL.woodDk, lw: 2, wob: 1, passes: 1, strokeAlpha: 0.6 });
+      }
+      // the waiting stack
+      for (var p2 = ctl.placed + (ctl.carrying ? 1 : 0); p2 < 3; p2++) {
+        ctx.drawImage(panelTile, ctl.stack[0] - 45, ctl.stack[1] - 26 - (2 - p2) * 12);
+      }
+      // the one on the hook, swaying under the jib
+      if (ctl.carrying) {
+        var sway = Math.sin(W.game.t * 3) * 6;
+        ctx.drawImage(panelTile, ctl.x - 45 + ctl.face * 40 + sway, ctl.y - 150);
+        ctx.save();
+        ctx.strokeStyle = W.PAL.outline;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(ctl.x + ctl.face * 40, ctl.y - 160);
+        ctx.lineTo(ctl.x + ctl.face * 40 + sway + 0, ctl.y - 120);
+        ctx.stroke();
+        ctx.restore();
+      }
+    } else if (ctl.kind === 'wreckingBall' && ctl.swing > 0) {
+      // the ball whips forward through the swing
+      var k = 1 - ctl.swing / 0.8;
+      var ang = -0.9 + k * 1.8;
+      var bx = ctl.x + ctl.face * 46 + Math.sin(ang) * 90 * ctl.face;
+      var byy = ctl.y - 150 + Math.cos(ang) * 90;
+      ctx.save();
+      ctx.strokeStyle = W.PAL.outline;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(ctl.x + ctl.face * 46, ctl.y - 150);
+      ctx.lineTo(bx, byy);
+      ctx.stroke();
+      ctx.fillStyle = '#5A4A3E';
+      ctx.beginPath();
+      ctx.arc(bx, byy, 20, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
   }
 
-  /* ---- dinner ------------------------------------------------------
+    /* ---- dinner ------------------------------------------------------
    * Placing a dish seats Bobby. Eating is a deliberate act with a real
    * animation, because a meal that finishes instantly feels like nothing
    * happened at all.
@@ -1048,7 +1194,7 @@
     var G = W.game;
     // A rebuild tears the room down and re-enters it, so it has to wait for
     // any sequence that owns the screen (a machine mid-drive, a meal, a ride).
-    if (pendingRebuild && !S.driving && !S.mealSeq && !S.riding && !S.sleeping) {
+    if (pendingRebuild && !S.machineCtl && !S.mealSeq && !S.riding && !S.sleeping) {
       var rb = pendingRebuild;
       pendingRebuild = null;
       W.rebuildRoom(rb);
@@ -1057,7 +1203,7 @@
 
     /* Safety net: if Bobby is ever inside something solid (a rebuild dropped
      * a prop on him, a sequence put him somewhere odd), walk him out. */
-    if (!S.sleeping && !S.seated && !S.riding && !S.mealSeq && !S.driving &&
+    if (!S.sleeping && !S.seated && !S.riding && !S.mealSeq && !S.machineCtl &&
         !(S.player.jumpT > 0) &&
         !W.canStand(S.room, S.solids, S.player.x, S.player.y)) {
       S.stuckT = (S.stuckT || 0) + dt;
@@ -1070,21 +1216,38 @@
       S.stuckT = 0;
     }
 
-    // always drain at least one pose per frame — a stalled queue means the
-    // bake happens synchronously inside draw instead, which is worse
-    var wb = performance.now() + 3;
-    if (W.warmStep()) while (performance.now() + W.warmAvg() < wb + 6 && W.warmStep()) { /* one more */ }
+    // Drain queued poses in gameplay ONLY while they're cheap — an expensive
+    // pose mid-walk is a felt hitch and a music skip, and it will bake itself
+    // on demand the first time it's actually drawn anyway. The fades carry
+    // the heavy lifting with a much bigger budget.
+    if (W.warmAvg() < 9) {
+      var wb = performance.now() + 3;
+      if (W.warmStep()) while (performance.now() + W.warmAvg() < wb + 6 && W.warmStep()) { /* one more */ }
+    }
 
     W.dialogue.update(dt);
     W.fx.update(dt);
     S.player.update(dt);
 
-    // ------- Bobby is in a machine cab; the site does the rest
-    if (S.driving) {
-      updateDrive(dt);
+    // ------- Bobby is at the wheel of a site machine
+    if (S.machineCtl) {
+      updateMachine(dt);
+      if (S.machineCtl) {                       // (a finished job may exit)
+        var mc = S.machineCtl;
+        if (mc.doneT !== undefined) {
+          mc.doneT -= dt;
+          if (mc.doneT <= 0) { exitMachine(); }
+        }
+        if (S.machineCtl) {
+          S.prompt = {
+            text: (mc.progress || 'Drive!') + '  ·  arrows drive',
+            locked: true
+          };
+        }
+      }
       W.updateNPCs(S.npcs, S.room, S.solids, dt, S.player);
-      S.prompt = { text: 'Working...', locked: true };
       W.dialogue.update(dt);
+      W.fx.update(dt);
       return;
     }
 
@@ -1500,8 +1663,18 @@
         if (W.audio) W.audio.play('blip');
       } else if (S.talkTo && S.talkTo.friendKey &&
           G.state.party.indexOf(S.talkTo.friendKey) >= 0) {
+        var wasCritter = S.talkTo.friendKey.indexOf('critter') === 0;
         W.dismiss(S.talkTo, S.name);
         W.renumberParty(S.npcs);
+        // a pom-pom led to the living room moves into its box — the payoff
+        // for the walk home
+        if (wasCritter && S.name === 'living' && G.state.builds.critterBox) {
+          S.talkTo.says('*happiest wiggle*', 3);
+          W.fx.hearts(S.talkTo.x, S.talkTo.y - 60, 6);
+          W.say(S.talkTo.name + ' moved into the critter box!', PAL.accent);
+          G.first('critterhome', 'A pom-pom moved in!');
+          if (W.audio) W.audio.play('cheer');
+        }
       } else if (W.service.active()) {
         // clocking off works ANYWHERE — being stuck mid-shift because a
         // customer was blocking the counter station was miserable
@@ -1514,6 +1687,18 @@
 
   S.draw = function (ctx) {
     var G = W.game;
+    if (S.shakeT > 0) {
+      S.shakeT -= 1 / 60;
+      ctx.save();
+      ctx.translate((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7);
+      drawScene(ctx, G);
+      ctx.restore();
+      return;
+    }
+    drawScene(ctx, G);
+  };
+
+  function drawScene(ctx, G) {
     // Indoors the light switch decides. Outdoors, only the campfire can
     // bring the night in — that is what "sleep under the stars" needs.
     var dark = (S.room.wallH || S.room.canNight) && !lightsOn(S.name);
@@ -1527,13 +1712,14 @@
     ctx.drawImage(dark ? nightBg(S.name) : S.bg, 0, 0);
 
     var list = S.sprites.slice();
-    if (S.driving && S.driving.sprite) {
+    if (S.machineCtl && S.machineCtl.sprite) {
       // the machine sorts by where it IS, not where it is parked
-      var mi2 = list.indexOf(S.driving.sprite);
+      var mi2 = list.indexOf(S.machineCtl.sprite);
       if (mi2 >= 0) {
         var mv = list[mi2];
+        var mdy = S.machineCtl.y - S.machineCtl.home[1];
         list[mi2] = { img: mv.img, ox: mv.ox, oy: mv.oy, kind: mv.kind,
-                      baseY: mv.baseY + S.driving.dy, moving: mv };
+                      baseY: mv.baseY + mdy, moving: mv };
       }
     }
     list.push({ actor: S.player, baseY: S.player.y });
@@ -1547,7 +1733,7 @@
     for (var i = 0; i < list.length; i++) {
       var it = list[i];
       if (it.actor === S.player) {
-        if (S.driving) {
+        if (S.machineCtl) {
           // he is up in the cab, drawn with the machine
         } else if (S.riding) {
           // drawn on the swing further down, not standing on the grass
@@ -1567,11 +1753,12 @@
         }
       } else if (it.actor) {
         if (!it.actor.hidden) it.actor.draw(ctx, G.t);
-      } else if (S.driving && (it === S.driving.sprite || it.moving === S.driving.sprite)) {
-        // the machine is out working, so it isn't parked any more
-        ctx.drawImage(it.img, it.ox + S.driving.dx, it.oy + S.driving.dy);
-        W.drawChar(ctx, S.driving.home[0] + S.driving.dx,
-                        S.driving.home[1] + S.driving.dy - 34, {
+      } else if (S.machineCtl && (it === S.machineCtl.sprite || it.moving === S.machineCtl.sprite)) {
+        // the machine is out on the job, wherever Bobby has driven it
+        var mdx = S.machineCtl.x - S.machineCtl.home[0];
+        var mdy2 = S.machineCtl.y - S.machineCtl.home[1];
+        ctx.drawImage(it.img, it.ox + mdx, it.oy + mdy2);
+        W.drawChar(ctx, S.machineCtl.x, S.machineCtl.y - 34, {
           char: 'bobby', suit: G.state.suit, dir: 'down', t: G.t,
           scale: 0.44, noShadow: true
         });
@@ -1606,7 +1793,7 @@
       });
     }
 
-    drawMachineWork(ctx);
+    siteJobArt(ctx);
     W.dropped.draw(ctx, S.name, G.t);
 
     for (var s2 = 0; s2 < S.stations.length; s2++) {
@@ -1702,7 +1889,10 @@
     if (S.prompt && !S.sleeping) {
       var kc = S.prompt.keyChar || 'Z';
       if (S.promptStation && S.promptStation.def.stopWith === 'back' && W.service.active()) kc = 'X';
-      W.drawPrompt(ctx, S.player.x, S.player.y + 24, S.prompt.text, G.t, S.prompt.locked, kc,
+      // while driving a site machine, the pill rides under the machine
+      var ppx = S.machineCtl ? S.machineCtl.x : S.player.x;
+      var ppy = S.machineCtl ? S.machineCtl.y + 30 : S.player.y + 24;
+      W.drawPrompt(ctx, ppx, ppy, S.prompt.text, G.t, S.prompt.locked, kc,
         S.prompt.key2, S.prompt.label2);
     }
     W.dialogue.draw(ctx, S.player.x, S.player.y - 132);
@@ -1726,7 +1916,7 @@
         seed: 'hint' + (alt ? 'b' : 'a') + (W.can('transform') ? 'T' : '')
       });
     }
-  };
+  }
 
   S.bobbyPos = function () { return [S.player.x, S.player.y]; };
 

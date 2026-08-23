@@ -116,12 +116,20 @@ and they appear in it, forever.
 **Building things** (Builder outfit) — the park **swing set** starts broken
 behind hazard tape: fix it and *two* can swing at once. Build a **see-saw**
 next to it — it refuses to work solo, so bring a friend. Build a **critter
-box** in the living room and the pom-poms move in. And out at the **building
-site** (a pad on the neighbourhood map), four machines each do one stage:
-**bulldozer** clears the lot, **mixer** pours the floor, **crane** lifts the
-walls, **toolbox** puts the roof on — then Panda and Yuna move into their own
-little house, which you can visit. The **wrecking ball** knocks it flat again
-so you can build it all over.
+box** in the living room — then go say Trix to the pom-poms at the park,
+lead them home, and say Dee by the box: THAT is how they move in, one happy
+wiggle at a time.
+
+Out at the **BUILD SITE** (a pad on the neighbourhood map), building the
+house is a game you PLAY, machine by machine: climb into the **bulldozer**
+and shove all five junk piles off the lot; drive the **mixer** onto the slab
+and hold `Z` to pour the floor; hook wall panels under the **crane** and
+lower them over the lot one at a time; then grab roof panels from the
+**toolbox** and nail each one on at the house. Panda and Yuna move into the
+finished house, which you can visit — and the map pad turns into their house
+too. Drive the **wrecking ball** up and swing it (`Z`, three smashes!) to
+knock it all flat and build it again. The car on the DRIVE HOME oval takes
+you back to the neighbourhood.
 
 **Outfits** — the magic closet. Each one unlocks something:
 
@@ -151,7 +159,7 @@ fly or drive over the neighbourhood map. Land on a pad to arrive somewhere.
 - **SPACE** (UFO only) → free flight over planets and stars; the pulsing
   **INVASION** pad starts the alien battle, fought from inside the UFO —
   **three waves of ten**. Your hull is patched between waves, and each wave
-  hands you a random power-up (**dual blasters**, **heat-seeking straws** or
+  hands you a random power-up (**dual blasters**, **heat-seeking boba** or
   **boba bombs**). Wave two's saucers carry **shields** that take an extra
   hit — and you get a shield of your own plus a speed boost. Wave three's are
   faster. Power-ups **stack**: whatever you earned in wave one is still yours
@@ -197,7 +205,7 @@ ice cream turns Bobby into **Long-Neck Bobby** for a while.
 
 ## Testing
 
-Open `tests.html`. It drives the game with scripted input and checks **981**
+Open `tests.html`. It drives the game with scripted input and checks **1002**
 things across movement, cooking, lights, sleep, friends, suits, vehicles, jobs,
 missions, crystals, saving, the consistency of every room and map, plus
 regression suites from a full audit and a gameplay-feel pass (save-guard,

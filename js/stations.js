@@ -1013,7 +1013,9 @@
           H.player.y = ey;
           W.fx.sparkle(st.x + st.w / 2, st.y - 80, 26, 140);
           G().showBanner('TREEHOUSE BUILT!', 'Climb up and see!');
-          W.requestRebuild('outside');
+          // the tree lives wherever its room says it does — a hardcoded
+          // 'outside' left the backyard un-rebuilt and the treehouse unseen
+          W.requestRebuild(st.room);
         }
       }
     },
@@ -1418,12 +1420,17 @@
         buildJob(st, 2.4, 'A snug little house for the fluffiest friends.');
         return;
       }
-      var here = W.sceneHouse.npcs.filter(function (n) {
-        return n.friendKey && n.friendKey.indexOf('critter') === 0;
-      }).length;
-      say(here ? 'Three little snoozes. Sweet dreams, pom-poms.'
-               : 'Empty for now — the critters are out playing.');
-      W.fx.hearts(st.x + st.w / 2, st.y - 40, 3);
+      var home = critterCount();
+      if (home === 0) {
+        say('Empty! Say Trix to the pom-poms at the park and lead them here.');
+      } else if (home < 3) {
+        say(home + ' pom-pom' + (home > 1 ? 's' : '') + ' snoozing... room for ' +
+            (3 - home) + ' more!');
+        W.fx.hearts(st.x + st.w / 2, st.y - 40, home);
+      } else {
+        say('Three little snoozes. Sweet dreams, pom-poms.');
+        W.fx.hearts(st.x + st.w / 2, st.y - 40, 4);
+      }
     },
     update: function (st, dt) {
       if (st.s.building > 0) {
@@ -1431,45 +1438,88 @@
         if (st.s.building <= 0) {
           var G3 = G();
           G3.state.builds.critterBox = true;
-          if (!G3.state.friendRooms) G3.state.friendRooms = {};
-          ['critterA', 'critterB', 'critterC'].forEach(function (k) {
-            if (G3.state.party.indexOf(k) < 0) G3.state.friendRooms[k] = 'living';
-          });
+          // The box is EMPTY on purpose: the pom-poms live at the park until
+          // somebody walks there, says Trix, leads them home and says Dee.
+          // Moving your friends in is the game, not a cutscene.
           W.requestRebuild('living');
-          G3.showBanner('CRITTER BOX!', 'The pom-poms have moved in!');
+          G3.showBanner('CRITTER BOX!', 'Now go fetch the pom-poms!');
           if (W.audio) W.audio.play('cheer');
         }
       }
     }
   };
 
-  /* The site: each machine owns one stage, so there is never a menu to
-   * read — walk to the right machine and it does its job. */
+  /* How many pom-poms have actually moved into the living room. */
+  function critterCount() {
+    var fr = G().state.friendRooms || {};
+    return ['critterA', 'critterB', 'critterC'].filter(function (k) {
+      return fr[k] === 'living';
+    }).length;
+  }
+
+  /* The site: each machine owns one stage, and Bobby DRIVES it — clearing,
+   * pouring, lifting and smashing are his hands on the wheel, not a cutscene.
+   * scene-house runs the driving (S.machineCtl); this file owns the rules. */
   var STAGE_JOB = {
-    bulldozer: { stage: 0, verb: 'Clear the lot',    line: 'Vrrrooom! Push all this junk away.' },
-    mixer:     { stage: 1, verb: 'Pour the floor',   line: 'Slosh! One concrete slab coming up.' },
-    crane:     { stage: 2, verb: 'Lift the walls',   line: 'Up she goes... steady... steady...' },
-    toolbox:   { stage: 3, verb: 'Put the roof on',  line: 'Bang bang bang! Nearly a home.' }
+    bulldozer: { stage: 0, verb: 'Clear the lot',   line: 'Vrrrooom! Push all that junk off the lot!' },
+    mixer:     { stage: 1, verb: 'Pour the floor',  line: 'Drive onto the lot and hold Z to pour!' },
+    crane:     { stage: 2, verb: 'Lift the walls',  line: 'Z grabs a panel — carry it over the lot and Z again!' }
   };
   var STAGE_DONE = ['The lot is clear!', 'The floor is set!', 'Walls up!', 'HOUSE COMPLETE!'];
 
+  /* Bank one finished stage of the friends' house. */
+  function advanceHouse() {
+    var G2 = G();
+    G2.state.builds.friendHouse = (G2.state.builds.friendHouse || 0) + 1;
+    var stage = G2.state.builds.friendHouse;
+    W.requestRebuild('site');
+    W.fx.sparkle(480, 340, 14, 120);
+    if (stage >= 4) {
+      if (!G2.state.friendRooms) G2.state.friendRooms = {};
+      ['panda', 'yuna'].forEach(function (k) {
+        if (G2.state.party.indexOf(k) < 0) G2.state.friendRooms[k] = 'friendhouse';
+      });
+      if (W.rebuildMap) W.rebuildMap('neighborhood');
+      G2.showBanner('HOUSE COMPLETE!', 'Panda and Yuna move in!');
+      G2.first('house', 'First house built!');
+      if (W.audio) W.audio.play('win');
+    } else {
+      G2.showBanner(STAGE_DONE[stage - 1], 'Stage ' + stage + ' of 4');
+      if (W.audio) W.audio.play('ding');
+    }
+  }
+  W.advanceHouse = advanceHouse;
+
+  /* The wrecking ball has knocked the whole thing down. */
+  function demolishHouse() {
+    var G2 = G();
+    G2.state.builds.friendHouse = 0;
+    if (!G2.state.friendRooms) G2.state.friendRooms = {};
+    ['panda', 'yuna'].forEach(function (k) {
+      if (G2.state.friendRooms[k] === 'friendhouse') G2.state.friendRooms[k] = 'park';
+    });
+    W.requestRebuild('site');
+    if (W.rebuildMap) W.rebuildMap('neighborhood');
+    G2.showBanner('KABOOM!', 'Build it again!');
+    say('MY ROOF! ...again! Do it again!');
+    W.fx.dust(470, 360, 12);
+    if (W.audio) W.audio.play('boom');
+  }
+  W.demolishHouse = demolishHouse;
+
   S.machine = {
     label: 'Machine',
-    // `undefined <= 0` is false, which once ran the whole build every frame
-    init: function (st) { if (!st.s.run) st.s.run = 0; },
     locked: function () { return !W.can('build'); },
     prompt: function (st) {
       var job = STAGE_JOB[st.machine];
-      if (st.s.run > 0) return job.verb + '...';
       var stage = (G().state.builds || {}).friendHouse || 0;
       if (!W.can('build')) return 'A big ' + st.machine + ' (needs a Builder)';
       if (stage >= 4) return 'All finished!';
       if (stage !== job.stage) return 'Not this one yet';
-      return job.verb;
+      return 'Drive: ' + job.verb.toLowerCase();
     },
     act: function (st) {
       var G2 = G();
-      if (st.s.run > 0) return;
       if (!W.can('build')) { say('Only Builder Bobby may drive this.'); return; }
       var stage = G2.state.builds.friendHouse || 0;
       var job = STAGE_JOB[st.machine];
@@ -1478,98 +1528,88 @@
         say(['First clear the lot with the bulldozer!',
              'Now the mixer, for the floor.',
              'Time for the crane and the walls.',
-             'The toolbox! Roof time.'][stage]);
+             'The toolbox! Grab a roof panel.'][stage]);
         return;
       }
-      // Bobby climbs in and drives it over to the site himself
-      st.s.run = 5.4;
       say(job.line);
-      W.sceneHouse.driveMachine(st, st.machine, function () { finishStage(st); });
-    },
-    update: function (st, dt) {
-      if (!(st.s.run > 0)) return;
-      st.s.run -= dt;
-      if (st.s.run > 0) return;
-      st.s.run = 0;
+      W.sceneHouse.mountMachine(st, st.machine);
     }
   };
-
-  /* One stage of the friends' house, banked when the machine finishes. */
-  function finishStage(st) {
-      var G2 = G();
-      st.s.run = 0;
-      G2.state.builds.friendHouse = (G2.state.builds.friendHouse || 0) + 1;
-      var stage = G2.state.builds.friendHouse;
-      W.requestRebuild('site');
-      W.fx.sparkle(480, 300, 14, 120);
-      if (stage >= 4) {
-        if (!G2.state.friendRooms) G2.state.friendRooms = {};
-        ['panda', 'yuna'].forEach(function (k) {
-          if (G2.state.party.indexOf(k) < 0) G2.state.friendRooms[k] = 'friendhouse';
-        });
-        if (W.rebuildMap) W.rebuildMap('neighborhood');
-        G2.showBanner('HOUSE COMPLETE!', 'Panda and Yuna move in!');
-        G2.first('house', 'First house built!');
-        if (W.audio) W.audio.play('win');
-      } else {
-        G2.showBanner(STAGE_DONE[stage - 1], 'Stage ' + stage + ' of 4');
-        if (W.audio) W.audio.play('ding');
-      }
-  }
 
   S.wreckingBall = {
     label: 'Wrecking Ball',
-    init: function (st) { if (!st.s.swing) st.s.swing = 0; },
     locked: function () { return !W.can('build'); },
-    prompt: function (st) {
-      if (st.s.swing > 0) return 'SMASH!';
+    prompt: function () {
       if (((G().state.builds || {}).friendHouse || 0) < 4) return 'Nothing to knock down (yet!)';
-      return W.can('build') ? 'Knock it all down!' : 'A wrecking ball (needs a Builder)';
+      return W.can('build') ? 'Drive the wrecking ball!' : 'A wrecking ball (needs a Builder)';
     },
     act: function (st) {
       var G2 = G();
-      if (st.s.swing > 0) return;
       if ((G2.state.builds.friendHouse || 0) < 4) { say('Build the house first!'); return; }
       if (!W.can('build')) { say('Only Builder Bobby may swing this.'); return; }
-      st.s.swing = 5.4;
-      say('Stand baaaack!');
-      W.sceneHouse.driveMachine(st, 'wreckingBall', function () { smash(st); });
-    },
-    update: function (st, dt) {
-      if (!(st.s.swing > 0)) return;
-      st.s.swing -= dt;
-      if (st.s.swing > 0) return;
-      st.s.swing = 0;
+      say('Drive up to the house and press Z to SWING!');
+      W.sceneHouse.mountMachine(st, 'wreckingBall');
     }
   };
 
-  function smash(st) {
+  /* The toolbox: the roof goes on by hand — grab a panel, carry it to the
+   * house, nail it down. Three trips. */
+  S.machineToolbox = null; // (roof is on foot; see S.toolbox + houseDoor)
+  S.toolbox = {
+    label: 'Toolbox',
+    locked: function () { return !W.can('build'); },
+    prompt: function () {
+      var stage = (G().state.builds || {}).friendHouse || 0;
+      if (!W.can('build')) return 'A toolbox (needs a Builder)';
+      if (stage >= 4) return 'All finished!';
+      if (stage !== 3) return 'Not yet — walls first!';
+      if (W.hands.has('roofPanel')) return 'Got one! Take it to the house';
+      return 'Grab a roof panel';
+    },
+    act: function (st) {
       var G2 = G();
-      st.s.swing = 0;
-      G2.state.builds.friendHouse = 0;
-      if (!G2.state.friendRooms) G2.state.friendRooms = {};
-      ['panda', 'yuna'].forEach(function (k) {
-        if (G2.state.friendRooms[k] === 'friendhouse') G2.state.friendRooms[k] = 'park';
-      });
-      W.requestRebuild('site');
-      if (W.rebuildMap) W.rebuildMap('neighborhood');
-      G2.showBanner('KABOOM!', 'Build it again!');
-      say('MY ROOF! ...again! Do it again!');
-      W.fx.dust(470, 360, 12);
-      if (W.audio) W.audio.play('boom');
-  }
+      if (!W.can('build')) { say('Builder Bobby needs to do this bit.'); return; }
+      var stage = G2.state.builds.friendHouse || 0;
+      if (stage >= 4) { say('The roof is on! Try the wrecking ball...'); return; }
+      if (stage !== 3) { say('The walls are not up yet.'); return; }
+      if (W.hands.has('roofPanel')) { say('One at a time! To the house with it.'); return; }
+      var bumped = W.hands.hold('roofPanel');
+      if (bumped) W.dropped.dropItem(W.sceneHouse.name, bumped, st.x + 10, st.y + 46);
+      if (!st.s.nails) st.s.nails = 0;
+      say('Roof panel ' + (st.s.nails + 1) + ' of 3 — carry it to the house!');
+      if (W.audio) W.audio.play('pickup');
+    }
+  };
 
-  /* The front door only exists once there is a house around it. */
+  /* The front door doubles as the nailing spot while the roof goes on. */
   S.houseDoor = {
     label: 'Front Door',
     prompt: function () {
       var stage = (G().state.builds || {}).friendHouse || 0;
+      if (stage === 3 && W.hands.has('roofPanel')) return 'Nail it on!';
       if (stage >= 4) return 'Knock on the door';
-      return ['An empty lot', 'A bare slab', 'Four walls, no roof', 'Nearly there!'][stage];
+      return ['An empty lot', 'A bare slab', 'Four walls, no roof', 'Needs its roof (see the toolbox)'][stage];
     },
-    act: function () {
-      if (((G().state.builds || {}).friendHouse || 0) < 4) { say('Not finished yet!'); return; }
-      G().fadeTo('house', { room: 'friendhouse' });
+    act: function (st) {
+      var G2 = G();
+      var stage = G2.state.builds.friendHouse || 0;
+      if (stage === 3 && W.hands.has('roofPanel')) {
+        W.hands.drop();
+        var tb = W.sceneHouse.stations.filter(function (q) { return q.kind === 'toolbox'; })[0];
+        var bucket = tb ? tb.s : st.s;
+        bucket.nails = (bucket.nails || 0) + 1;
+        W.fx.dust(st.x + st.w / 2 + (Math.random() - 0.5) * 80, st.y - 60, 4);
+        if (W.audio) W.audio.play('hammer');
+        if (bucket.nails >= 3) {
+          bucket.nails = 0;
+          advanceHouse();
+        } else {
+          say('Bang bang! ' + bucket.nails + ' of 3 nailed on. More panels!');
+        }
+        return;
+      }
+      if (stage < 4) { say('Not finished yet!'); return; }
+      G2.fadeTo('house', { room: 'friendhouse' });
     }
   };
 

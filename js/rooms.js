@@ -275,6 +275,7 @@
         { kind: 'crane',     x: 760, y: 320 },
         { kind: 'toolbox',   x: 800, y: 470 },
         { kind: 'wreckingBall', x: 620, y: 520 },
+        { kind: 'pitchMark', x: 110, y: 520, tint: 'DRIVE HOME' },
         { kind: 'car',       x: 120, y: 470 },
         { kind: 'signpost',  x: 160, y: 268, tint: 'BUILD IT!' },
         { kind: 'fence',     x: 44,  y: 200 },
@@ -293,7 +294,7 @@
         { kind: 'machine', machine: 'bulldozer', x: 60,  y: 322, w: 130, h: 44 },
         { kind: 'machine', machine: 'mixer',     x: 240, y: 452, w: 132, h: 44 },
         { kind: 'machine', machine: 'crane',     x: 760, y: 342, w: 150, h: 44 },
-        { kind: 'machine', machine: 'toolbox',   x: 800, y: 492, w: 84,  h: 40 },
+        { kind: 'toolbox',   x: 800, y: 492, w: 84,  h: 40 },
         { kind: 'wreckingBall', x: 620, y: 542, w: 120, h: 44 },
         { kind: 'houseDoor',    x: 452, y: 340, w: 60,  h: 40 }
       ]
