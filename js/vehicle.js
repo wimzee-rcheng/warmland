@@ -19,8 +19,8 @@
       hint: 'Arrows to fly  ·  land on a pad'
     },
     car: {
-      name: 'Car', map: 'neighborhood', requires: 'drive',
-      accel: 720, drag: 4.0, max: 300, tilt: 0.10, ground: true, flips: true,
+      name: 'Car', map: 'neighborhood',   // anyone can drive; racing needs the suit
+      accel: 820, drag: 4.0, max: 380, tilt: 0.10, ground: true, flips: true,
       draw: function (ctx, x, y, sc, t) { W.drawCar(ctx, x, y, sc, t); },
       rider: { x: 0, y: -18, scale: 0.4, clip: [-30, -66, 60, 46] },
       hint: 'Arrows to drive  ·  stop on a pad'
@@ -49,17 +49,21 @@
       pois: [
         { x: 980,  y: 690,  r: 76, label: 'HOME',     to: { room: 'outside' } },
         { x: 1500, y: 440,  r: 74, label: 'PARK',     to: { room: 'park' } },
-        { x: 300,  y: 440,  r: 74, label: 'SHOP',     to: { room: 'shop' } },
+        { x: 300,  y: 440,  r: 74, label: 'ICE CREAM', to: { room: 'shop' } },
+        { x: 620,  y: 690,  r: 74, label: 'GROCERY',  to: { room: 'grocery' } },
         { x: 460,  y: 940,  r: 92, label: 'LAKE',     kind: 'lake' },
         { x: 1660, y: 950,  r: 84, label: 'MOUNTAIN', to: { map: 'crystalMountain' }, only: 'balloon' },
-        { x: 1180, y: 120,  r: 70, label: 'SPACE',    to: { map: 'space' }, only: 'ufo' }
+        { x: 1180, y: 120,  r: 70, label: 'SPACE',    to: { map: 'space' }, only: 'ufo' },
+        { x: 980,  y: 1010, r: 92, label: 'RACE TRACK', to: { race: true }, only: 'car', needs: 'drive', track: true },
+        { x: 640,  y: 200,  r: 78, label: 'BUILD SITE', to: { room: 'site' }, house: true }
       ]
     },
     crystalMountain: {
       w: 1400, h: 900, ground: '#DDE9F2', snow: true,
       pois: [
         { x: 700, y: 430, r: 84, label: 'LAND',  to: { room: 'mountain' } },
-        { x: 120, y: 800, r: 70, label: 'HOME',  to: { map: 'neighborhood' } }
+        { x: 120, y: 800, r: 70, label: 'HOME',  to: { map: 'neighborhood' } },
+        { x: 1140, y: 190, r: 86, label: 'SNOW RUN', to: { snow: true } }
       ]
     },
     underwater: {
@@ -74,7 +78,8 @@
       w: 1600, h: 1000, ground: '#0E1030', space: true,
       pois: [
         { x: 800,  y: 880, r: 84, label: 'HOME',     to: { map: 'neighborhood' } },
-        { x: 1200, y: 260, r: 84, label: 'INVASION', to: { mission: 'space' }, alarm: true }
+        { x: 1200, y: 260, r: 84, label: 'INVASION', to: { mission: 'space' }, alarm: true },
+        { x: 420,  y: 420, r: 88, label: 'MARS',     to: { mars: true }, planet: '#C4643F' }
       ]
     }
   };
@@ -290,8 +295,15 @@
     else if (id === 'underwater') paintUnderwater(g, m);
     else if (id === 'space') paintSpace(g, m);
 
-    // landing pads
+    // landing pads — a few of them are a picture rather than a disc
     m.pois.forEach(function (p, i) {
+      if (p.track) { paintTrackPad(g, p, i); return; }
+      if (p.planet) { paintPlanetPad(g, p, i); return; }
+      var label = W.poiLabel(p);
+      if (p.house && W.game.state.builds && W.game.state.builds.friendHouse >= 4) {
+        paintHousePad(g, p, i, label);
+        return;
+      }
       C.ellipse(g, p.x, p.y, p.r, p.r * 0.62, {
         seed: 'pad' + i, fill: m.space ? '#4A4A6E' : PAL.steel, stroke: PAL.outline,
         lw: 4, hatch: 5, wash: 0.6
@@ -299,7 +311,7 @@
       C.ellipse(g, p.x, p.y, p.r - 15, (p.r - 15) * 0.62, {
         seed: 'pad2' + i, stroke: PAL.sun, lw: 3.4, wob: 1.6
       });
-      C.text(g, p.label, p.x, p.y + 8, {
+      C.text(g, label, p.x, p.y + 8, {
         size: 22, align: 'center', color: m.space ? PAL.white : PAL.outline, seed: 'padt' + i
       });
     });
@@ -307,5 +319,100 @@
     built[id] = cv;
     return cv;
   };
+
+  /* Pads whose label changes as the world does. */
+  W.poiLabel = function (p) {
+    if (p.house && W.game.state.builds && W.game.state.builds.friendHouse >= 4) {
+      return "PANDA & YUNA'S";
+    }
+    return p.label;
+  };
+
+  /* Throw away a baked map so it repaints — the building site becomes a
+   * house, and the map has to notice. */
+  W.rebuildMap = function (mapId) { delete built[mapId]; };
+
+  /* A little oval circuit painted right on the road, so RACE TRACK looks
+   * like a race track instead of another grey disc. */
+  function paintTrackPad(g, p, i) {
+    var rx = p.r * 1.5, ry = p.r * 0.9;
+    C.ellipse(g, p.x, p.y, rx + 22, ry + 22, {
+      seed: 'trkg' + i, fill: '#7FB04E', stroke: null, hatch: 5, wash: 0.55, fillAlpha: 0.6
+    });
+    g.save();
+    g.beginPath();
+    g.ellipse(p.x, p.y, rx, ry, 0, 0, Math.PI * 2);
+    g.ellipse(p.x, p.y, rx * 0.52, ry * 0.42, 0, 0, Math.PI * 2, true);
+    g.clip();
+    C.rect(g, p.x - rx - 4, p.y - ry - 4, rx * 2 + 8, ry * 2 + 8, {
+      seed: 'trkt' + i, fill: '#7A7A82', stroke: null, hatch: 5, wash: 0.9, fillAlpha: 0.95
+    });
+    g.restore();
+    // the infield is grass, not more tarmac
+    C.ellipse(g, p.x, p.y, rx * 0.52, ry * 0.42, {
+      seed: 'trkin' + i, fill: '#8FBF63', stroke: null, hatch: 5, wash: 0.7, fillAlpha: 0.9
+    });
+    for (var k = 0; k < 26; k++) {
+      var a = (k / 26) * Math.PI * 2;
+      var col = k % 2 ? '#D9402F' : PAL.white;
+      C.dot(g, p.x + Math.cos(a) * (rx - 3), p.y + Math.sin(a) * (ry - 3), 6, col, 'tko' + i + k);
+      C.dot(g, p.x + Math.cos(a) * (rx * 0.52 + 3), p.y + Math.sin(a) * (ry * 0.42 + 3), 6, col, 'tki' + i + k);
+    }
+    // start/finish chequers on the near straight
+    for (var r = 0; r < 3; r++) {
+      for (var c = 0; c < 3; c++) {
+        if ((r + c) % 2) continue;
+        C.rect(g, p.x + rx * 0.58 + c * 14, p.y - 22 + r * 15, 14, 15, {
+          seed: 'tkc' + i + r + c, fill: PAL.white, stroke: null, hatch: 4, wash: 0.9, fillAlpha: 0.9
+        });
+      }
+    }
+    C.text(g, W.poiLabel(p), p.x, p.y + 8, {
+      size: 24, align: 'center', color: PAL.white,
+      outline: 4, outlineColor: PAL.outline, seed: 'tkl' + i
+    });
+  }
+
+  /* A whole planet, for the pads that are worlds. */
+  function paintPlanetPad(g, p, i) {
+    var col = p.planet;
+    C.ellipse(g, p.x, p.y, p.r, p.r, {
+      seed: 'pl' + i, fill: col, stroke: PAL.outline, lw: 4.4, hatch: 5, wash: 0.8
+    });
+    var rnd = W.mulberry32(W.hash('planet' + p.label));
+    for (var c = 0; c < 7; c++) {
+      var a = rnd() * Math.PI * 2, d = rnd() * p.r * 0.72;
+      C.ellipse(g, p.x + Math.cos(a) * d, p.y + Math.sin(a) * d,
+        6 + rnd() * 14, 5 + rnd() * 9, {
+          seed: 'plc' + i + c, fill: '#8A3E28', stroke: '#6E2E1E', lw: 2.4, hatch: 3.4, wash: 0.6
+        });
+    }
+    C.arc(g, p.x, p.y, p.r - 6, Math.PI * 1.1, Math.PI * 1.6, {
+      seed: 'plh' + i, stroke: PAL.white, lw: 5, wob: 2, passes: 1, strokeAlpha: 0.35
+    });
+    C.text(g, W.poiLabel(p), p.x, p.y + p.r + 34, {
+      size: 24, align: 'center', color: PAL.white,
+      outline: 4, outlineColor: PAL.outline, seed: 'pll' + i
+    });
+  }
+
+  /* Once it is built, the site IS the house. */
+  function paintHousePad(g, p, i, label) {
+    C.ellipse(g, p.x, p.y + 14, p.r + 10, (p.r + 10) * 0.5, {
+      seed: 'hpg' + i, fill: '#8FBF63', stroke: null, hatch: 5, wash: 0.5, fillAlpha: 0.5
+    });
+    C.rect(g, p.x - 54, p.y - 40, 108, 56, {
+      seed: 'hpw' + i, fill: PAL.wood, stroke: PAL.outline, lw: 3.6, hatch: 4, wash: 0.75
+    });
+    C.poly(g, [[p.x - 66, p.y - 38], [p.x, p.y - 84], [p.x + 66, p.y - 38]], {
+      seed: 'hpr' + i, fill: PAL.roof, stroke: PAL.outline, lw: 3.6, hatch: 4, wash: 0.78
+    });
+    C.rect(g, p.x - 13, p.y - 18, 26, 34, {
+      seed: 'hpd' + i, fill: PAL.woodDk, stroke: PAL.outline, lw: 2.8, hatch: 3, wash: 0.8
+    });
+    C.text(g, label, p.x, p.y + 46, {
+      size: 20, align: 'center', color: PAL.outline, seed: 'hpl' + i + label
+    });
+  }
 
 })(window.W);

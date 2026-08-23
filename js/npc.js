@@ -181,8 +181,8 @@
   W.giveGift = function (a) {
     var st = W.game.state;
     var f = W.FRIENDS[a.friendKey];
-    if (!f || !f.likes || !W.basket.has(f.likes)) return false;
-    W.basket.remove(f.likes);
+    if (!f || !f.likes || !W.hands.has(f.likes)) return false;
+    W.hands.drop();
     var h = Math.min(3, (st.friendship[a.friendKey] || 0) + 1);
     st.friendship[a.friendKey] = h;
     a.says(h >= 3 ? 'KEENA MEENA!! Best friends!!' : 'KEENA MEENA!! My favorite!', 3);

@@ -68,7 +68,13 @@
     dirtyPlate: { name: 'Dirty Plate', kind: 'plate', color: '#CFC4AE', icon: 'plate', dirty: true },
 
     crystal:    { name: 'Crystal',    kind: 'treasure', color: '#7FA8E8', icon: 'crystal' },
-    seeds:      { name: 'Seeds',      kind: 'pantry',   color: '#C79A5E', icon: 'sack' },
+    // 'supply' and 'tool' are never raw food, so they always ride in his
+    // paws rather than getting buried on the tray
+    seeds:      { name: 'Seeds',      kind: 'supply',   color: '#C79A5E', icon: 'sack' },
+    hoe:        { name: 'Hoe',        kind: 'tool',     color: '#8A5F38', icon: 'hoe' },
+    stick:      { name: 'Marshmallow Stick', kind: 'tool', color: '#8A5F38', icon: 'stick' },
+    smore:      { name: "S'more",     kind: 'dish',     color: '#C98F4E', icon: 'smore' },
+    wateringCan:{ name: 'Watering Can', kind: 'tool',   color: '#5FBFD6', icon: 'can' },
     treat:      { name: 'Pet Treat',  kind: 'treasure', color: '#E8B23D', icon: 'balls' },
     fish:       { name: 'Fish',       kind: 'ingredient', color: '#5FA8D6', icon: 'fish' },
     boot:       { name: 'Old Boot',   kind: 'treasure', color: '#6B4A2A', icon: 'boot' },
@@ -130,6 +136,43 @@
           C.dot(g, cx + r * 0.22, cy + r * 0.3, r * 0.09, '#8FD0EE', s + 'g2');
           C.dot(g, cx + r * 0.05, cy - r * 0.1, r * 0.09, '#8FD0EE', s + 'g3');
         }
+        break;
+      case 'stick':
+        C.line(g, cx - r * 0.7, cy + r * 0.8, cx + r * 0.4, cy - r * 0.5,
+          { seed: s + 'sk', stroke: col, lw: 3, wob: 0.7 });
+        C.roundRect(g, cx + r * 0.22, cy - r * 0.95, r * 0.6, r * 0.6, 4, {
+          seed: s + 'mm', fill: '#FFF6E0', stroke: PAL.outline, lw: 2, hatch: 2.4, wash: 0.85
+        });
+        break;
+      case 'smore':
+        C.rect(g, cx - r * 0.7, cy - r * 0.7, r * 1.4, r * 0.34, {
+          seed: s + 'tp', fill: col, stroke: PAL.outline, lw: 2, hatch: 2.4, wash: 0.8
+        });
+        C.rect(g, cx - r * 0.7, cy + r * 0.36, r * 1.4, r * 0.34, {
+          seed: s + 'bt', fill: col, stroke: PAL.outline, lw: 2, hatch: 2.4, wash: 0.8
+        });
+        C.rect(g, cx - r * 0.6, cy - r * 0.34, r * 1.2, r * 0.36, {
+          seed: s + 'mw', fill: '#FFF6E0', stroke: PAL.outline, lw: 1.8, hatch: 2.2, wash: 0.85
+        });
+        C.rect(g, cx - r * 0.6, cy + r * 0.02, r * 1.2, r * 0.34, {
+          seed: s + 'ch', fill: '#5A3A20', stroke: PAL.outline, lw: 1.8, hatch: 2.2, wash: 0.8
+        });
+        break;
+      case 'hoe':
+        C.line(g, cx - r * 0.5, cy + r * 0.8, cx + r * 0.42, cy - r * 0.7,
+          { seed: s + 'sh', stroke: col, lw: 3.4, wob: 0.6 });
+        C.rect(g, cx + r * 0.2, cy - r * 0.85, r * 0.62, r * 0.3, {
+          seed: s + 'bl', fill: '#B9C3C9', stroke: PAL.outline, lw: 1.8, hatch: 2, wash: 0.85
+        });
+        break;
+      case 'can':
+        C.roundRect(g, cx - r * 0.6, cy - r * 0.3, r * 1.05, r * 0.9, 3, {
+          seed: s, fill: col, stroke: PAL.outline, lw: 2, hatch: 2.6, wash: 0.8
+        });
+        C.line(g, cx + r * 0.45, cy - r * 0.2, cx + r * 0.9, cy - r * 0.62,
+          { seed: s + 'sp', stroke: col, lw: 3, wob: 0.6 });
+        C.arc(g, cx - r * 0.1, cy - r * 0.3, r * 0.34, Math.PI, Math.PI * 2,
+          { seed: s + 'hd', stroke: PAL.outline, lw: 2, wob: 0.6 });
         break;
       case 'jar':
         C.roundRect(g, cx - r * 0.5, cy - r * 0.5, r, r * 1.3, 4, { seed: s, fill: col, stroke: PAL.outline, lw: 2.2, hatch: 2.6, wash: 0.78 });
@@ -240,74 +283,155 @@
     ctx.drawImage(img, cx - img.width / 2, cy - img.height / 2);
   };
 
-  // ------------------------------------------------------------- basket
+  // -------------------------------------------------- tray + hands
 
+  /* Two-tier carrying, because one four-slot bag for everything made it
+   * impossible to know what you were about to use:
+   *   TRAY  — raw ingredients only (fridge, cabinets, garden). Four slots.
+   *   HANDS — exactly one of everything else: a cooked dish, a boba, a
+   *           fish, a tool. Drawn ON Bobby, so the state reads at a glance.
+   */
   var MAX = 4;
-  W.BASKET_MAX = MAX;
+  W.TRAY_MAX = MAX;
+  W.BASKET_MAX = MAX;                     // legacy name, same number
 
-  W.basket = {
-    list: function () { return W.game.state.basket; },
-    count: function () { return W.game.state.basket.length; },
-    full: function () { return W.game.state.basket.length >= MAX; },
-    has: function (id) { return W.game.state.basket.indexOf(id) >= 0; },
+  function isRaw(id) {
+    var k = W.ITEMS[id] && W.ITEMS[id].kind;
+    return k === 'ingredient' || k === 'pantry';
+  }
+  W.isRaw = isRaw;
 
+  W.tray = {
+    list: function () { return W.game.state.tray; },
+    count: function () { return W.game.state.tray.length; },
+    full: function () { return W.game.state.tray.length >= MAX; },
+    has: function (id) { return W.game.state.tray.indexOf(id) >= 0; },
+
+    /* Only raw things ride the tray. */
     add: function (id) {
-      var b = W.game.state.basket;
-      if (b.length >= MAX) return false;
-      b.push(id);
+      if (!isRaw(id)) return false;
+      var t = W.game.state.tray;
+      if (t.length >= MAX) return false;
+      t.push(id);
       if (W.audio) W.audio.play('pickup');
       return true;
     },
 
     remove: function (id) {
-      var b = W.game.state.basket;
-      var i = b.indexOf(id);
+      var t = W.game.state.tray;
+      var i = t.indexOf(id);
       if (i < 0) return false;
-      b.splice(i, 1);
+      t.splice(i, 1);
       return true;
     },
 
-    /* Everything of a given kind, e.g. all the ingredients for the stove. */
+    takeAll: function () {
+      var t = W.game.state.tray;
+      var out = t.slice();
+      t.length = 0;
+      return out;
+    },
+
     ofKind: function (kind) {
-      return W.game.state.basket.filter(function (id) { return W.ITEMS[id].kind === kind; });
+      return W.game.state.tray.filter(function (id) { return W.ITEMS[id].kind === kind; });
     }
   };
 
-  /* An actual wicker basket, bottom-left, with the items nestled inside it.
-   * The basket art is baked once; item icons blit into its four berths. */
-  var basketTile = null;
-  function basket() {
-    if (basketTile) return basketTile;
-    var w = 236, h = 84;
-    basketTile = C.offscreen(w, h);
-    var g = basketTile.getContext('2d');
-    // body
-    C.poly(g, [[10, 30], [w - 10, 30], [w - 26, h - 8], [26, h - 8]], {
-      seed: 'bk', fill: '#C79A5E', stroke: PAL.outline, lw: 3, hatch: 3.6, wash: 0.8
+  W.hands = {
+    item: function () { return W.game.state.held; },
+    empty: function () { return !W.game.state.held; },
+    has: function (id) { return W.game.state.held === id; },
+    kind: function () {
+      var h = W.game.state.held;
+      return h ? W.ITEMS[h].kind : null;
+    },
+
+    /* Put something in Bobby's paws. Returns whatever he was already
+     * holding (the caller drops it), or null. */
+    hold: function (id) {
+      var prev = W.game.state.held;
+      W.game.state.held = id;
+      if (W.audio) W.audio.play('pickup');
+      return prev === id ? null : prev;
+    },
+
+    take: function () {
+      var h = W.game.state.held;
+      W.game.state.held = null;
+      return h;
+    },
+
+    drop: function () { W.game.state.held = null; }
+  };
+
+  /* Route an item to wherever it belongs. Returns:
+   *   'tray'  stowed on the tray
+   *   'hand'  now held (and `bumped` names whatever it displaced)
+   *   false   nowhere to put it
+   * Callers that care about a displaced item read W.lastBumped. */
+  W.lastBumped = null;
+  W.stow = function (id) {
+    W.lastBumped = null;
+    if (isRaw(id)) {
+      if (W.tray.add(id)) return 'tray';
+      return false;
+    }
+    W.lastBumped = W.hands.hold(id);
+    return 'hand';
+  };
+
+  /* Everything the player is carrying, for save migration and tests. */
+  W.carrying = function () {
+    var out = W.game.state.tray.slice();
+    if (W.game.state.held) out.push(W.game.state.held);
+    return out;
+  };
+
+  /* --- legacy shim -------------------------------------------------------
+   * A few call sites still speak "basket". They mean "wherever this goes". */
+  W.basket = {
+    list: W.carrying,
+    count: function () { return W.tray.count() + (W.game.state.held ? 1 : 0); },
+    full: function () { return W.tray.full() && !!W.game.state.held; },
+    has: function (id) { return W.tray.has(id) || W.hands.has(id); },
+    add: function (id) { return !!W.stow(id); },
+    remove: function (id) {
+      if (W.tray.remove(id)) return true;
+      if (W.hands.has(id)) { W.hands.drop(); return true; }
+      return false;
+    },
+    ofKind: function (kind) {
+      var out = W.tray.ofKind(kind);
+      var h = W.game.state.held;
+      if (h && W.ITEMS[h].kind === kind) out.push(h);
+      return out;
+    }
+  };
+
+  /* A flat wooden tray for the raw ingredients, bottom-left. What Bobby is
+   * HOLDING isn't here — it's drawn on him (see character.js `held`), so
+   * you can always see it without reading a HUD. */
+  var trayTile = null;
+  function trayArt() {
+    if (trayTile) return trayTile;
+    var w = 236, h = 74;
+    trayTile = C.offscreen(w, h);
+    var g = trayTile.getContext('2d');
+    C.roundRect(g, 8, 14, w - 16, h - 26, 8, {
+      seed: 'tray', fill: '#C79A5E', stroke: '#7A5028', lw: 3.4, hatch: 4, wash: 0.82
     });
-    // weave
-    for (var r = 0; r < 3; r++) {
-      C.line(g, 16 + r * 4, 42 + r * 13, w - 16 - r * 4, 42 + r * 13, {
-        seed: 'wv' + r, stroke: '#8A5F38', lw: 2, wob: 1, passes: 1, strokeAlpha: 0.7
+    // plank seams + a raised rim
+    for (var i = 1; i < 4; i++) {
+      C.line(g, 8 + i * 55, 18, 8 + i * 55, h - 16, {
+        seed: 'ts' + i, stroke: '#8A5F38', lw: 1.8, wob: 0.9, passes: 1, strokeAlpha: 0.5
       });
     }
-    for (var v = 0; v < 7; v++) {
-      C.line(g, 28 + v * 30, 32, 32 + v * 28, h - 10, {
-        seed: 'wvv' + v, stroke: '#8A5F38', lw: 1.8, wob: 0.8, passes: 1, strokeAlpha: 0.5
-      });
-    }
-    // rim + handle
-    C.roundRect(g, 6, 22, w - 12, 14, 6, {
-      seed: 'rim', fill: '#B5813F', stroke: PAL.outline, lw: 2.8, hatch: 3, wash: 0.85
+    C.roundRect(g, 4, 10, w - 8, 16, 6, {
+      seed: 'trim', fill: '#B5813F', stroke: '#7A5028', lw: 3, hatch: 3, wash: 0.85
     });
-    C.arc(g, w / 2, 26, 44, Math.PI, Math.PI * 2, {
-      seed: 'hdl', stroke: '#8A5F38', lw: 5, wob: 1.4
-    });
-    return basketTile;
+    return trayTile;
   }
 
-  /* The plate stack beside the basket: stored count, plus a stained stack
-   * when there are dirty ones waiting. */
   var plateTiles = {};
   function plateStack(kind) {
     if (plateTiles[kind]) return plateTiles[kind];
@@ -329,29 +453,19 @@
 
   W.drawBasketBar = function (ctx) {
     var st = W.game.state;
-    var b = st.basket;
+    var t = st.tray;
 
-    if (b.length) {
-      var bx = 10, by = 462;
-      ctx.drawImage(basket(), bx, by);
-      for (var i = 0; i < b.length; i++) {
-        W.drawItem(ctx, b[i], bx + 40 + i * 52, by + 42, 16);
-      }
-      // a wiggling boba badge while a sugar rush is on
-      var fx = W.game.bobaFx;
-      if (fx) {
-        var wig = Math.sin(W.game.t * 9) * 0.2;
-        ctx.save();
-        ctx.translate(bx + 224, by + 12);
-        ctx.rotate(wig);
-        W.drawItem(ctx, 'boba', 0, 0, 12);
-        ctx.restore();
+    if (t.length) {
+      var bx = 10, by = 474;
+      ctx.drawImage(trayArt(), bx, by);
+      for (var i = 0; i < t.length; i++) {
+        W.drawItem(ctx, t[i], bx + 38 + i * 55, by + 42, 15);
       }
     }
 
-    // plates live next to the basket area, always visible in the kitchen zone
+    // plates live next to the tray in the kitchen
     var P2 = st.plates;
-    if (P2 && (P2.stored + P2.dirty + P2.rack) > 0 && W.game.state.room === 'kitchen') {
+    if (P2 && (P2.stored + P2.dirty + P2.rack) > 0 && st.room === 'kitchen') {
       ctx.drawImage(plateStack('clean'), 254, 494);
       C.textCached(ctx, '' + P2.stored, 310, 528, {
         size: 16, color: PAL.outline, outline: 3, outlineColor: PAL.white, seed: 'pst'
@@ -364,4 +478,5 @@
       }
     }
   };
+
 })(window.W);

@@ -59,13 +59,17 @@
 
     if (W.input.hit('act')) {
       var id = S.items[S.sel];
-      if (W.basket.full()) {
-        W.say('The basket is full! Four things at a time.');
+      if (W.isRaw(id) && W.tray.full()) {
+        W.say('The tray is full! Four things at a time.');
         return;
       }
-      W.basket.add(id);
+      var where = W.stow(id);
+      if (W.lastBumped) {
+        W.dropped.dropItem(W.game.state.room, W.lastBumped,
+          W.sceneHouse.player.x, W.sceneHouse.player.y);
+      }
       W.say('Got the ' + W.ITEMS[id].name.toLowerCase() + '.');
-      if (W.basket.full()) W.game.popOverlay();
+      if (where === 'tray' && W.tray.full()) W.game.popOverlay();
     }
   };
 
@@ -100,8 +104,8 @@
     }
 
     // what's already in the basket
-    C.textCached(ctx, 'Basket ' + W.basket.count() + ' / ' + W.BASKET_MAX, 480, 372, {
-      size: 20, align: 'center', color: W.basket.full() ? PAL.roof : PAL.white, seed: 'bc'
+    C.textCached(ctx, 'Tray ' + W.tray.count() + ' / ' + W.TRAY_MAX, 480, 372, {
+      size: 20, align: 'center', color: W.tray.full() ? PAL.roof : PAL.white, seed: 'bc'
     });
     W.drawBasketBar(ctx);
 

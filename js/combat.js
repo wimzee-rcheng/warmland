@@ -15,7 +15,8 @@
     this.enemies = [];
     // hitDy/hitR: where the body actually is relative to the anchor point —
     // the mech stands tall above its feet, the UFO is centred on itself
-    this.hero = { x: 480, y: 470, hp: 5, maxHp: 5, hurt: 0, cool: 0, hitDy: -70, hitR: 40 };
+    this.hero = { x: 480, y: 470, hp: 5, maxHp: 5, hurt: 0, cool: 0, hitDy: -70, hitR: 40,
+                  power: null, powers: [], shieldHits: 0, speed: 250 };
     this.over = null;       // 'win' | 'lose'
     this.overT = 0;
     this.shake = 0;
@@ -28,7 +29,20 @@
   Fight.prototype.fire = function (x, y, vx, vy, big) {
     if (this.hero.cool > 0) return;
     this.hero.cool = big ? 0.34 : 0.22;
-    this.shots.push({ x: x, y: y, vx: vx, vy: vy, r: big ? 11 : 8, life: 2.4 });
+    // every power-up Bobby has collected applies at once
+    var powers = this.hero.powers || (this.hero.power ? [this.hero.power] : []);
+    var seek = powers.indexOf('seeker') >= 0;
+    this.shotCount = (this.shotCount || 0) + 1;
+    var bomb = powers.indexOf('bombs') >= 0 && this.shotCount % 4 === 0;
+    var mk = function (ox) {
+      return { x: x + ox, y: y, vx: vx, vy: vy, r: bomb ? 12 : (big ? 11 : 8),
+               life: 2.4, seek: seek, bomb: bomb };
+    };
+    if (powers.indexOf('dual') >= 0) {
+      this.shots.push(mk(-16), mk(16));
+    } else {
+      this.shots.push(mk(0));
+    }
     if (W.audio) W.audio.play('shoot');
   };
 
@@ -36,8 +50,35 @@
     this.enemyShots.push({ x: x, y: y, vx: vx, vy: vy, r: r || 10, life: 4 });
   };
 
+  /* A boba bomb: everything close by takes a hit too. */
+  Fight.prototype.burst = function (x, y, skip) {
+    W.fx.sparkle(x, y, 22, 160);
+    if (W.audio) W.audio.play('boom');
+    for (var e = this.enemies.length - 1; e >= 0; e--) {
+      var en = this.enemies[e];
+      if (en === skip) continue;
+      if (Math.hypot(en.x - x, en.y - y) > 90) continue;
+      if (en.shield > 0) { en.shield--; en.hurt = 0.22; continue; }
+      en.hp -= 1;
+      en.hurt = 0.22;
+      if (en.hp <= 0) {
+        W.fx.sparkle(en.x, en.y, 22, 140);
+        this.enemies.splice(e, 1);
+      }
+    }
+  };
+
   Fight.prototype.hurtHero = function (n) {
     if (this.hero.hurt > 0 || this.over) return;
+    // a power-up shield eats exactly one hit, with a satisfying pop
+    if (this.hero.shieldHits > 0) {
+      this.hero.shieldHits--;
+      this.hero.hurt = 1.2;
+      this.shake = 0.3;
+      W.fx.sparkle(this.hero.x, this.hero.y + this.hero.hitDy, 20, 140);
+      if (W.audio) W.audio.play('pop');
+      return;
+    }
     this.hero.hp -= (n || 1);
     this.hero.hurt = 1.8;      // generous mercy time — the player is a child
     this.shake = 0.35;
@@ -58,6 +99,23 @@
 
     for (i = this.shots.length - 1; i >= 0; i--) {
       s = this.shots[i];
+      // heat-seeking straws bend toward whatever is closest
+      if (s.seek && this.enemies.length) {
+        var best = null, bd = 1e9;
+        for (var q = 0; q < this.enemies.length; q++) {
+          var dq = Math.hypot(this.enemies[q].x - s.x, this.enemies[q].y - s.y);
+          if (dq < bd) { bd = dq; best = this.enemies[q]; }
+        }
+        if (best) {
+          var want = Math.atan2(best.y - s.y, best.x - s.x);
+          var have = Math.atan2(s.vy, s.vx);
+          var diff = Math.atan2(Math.sin(want - have), Math.cos(want - have));
+          var turn = W.clamp(diff, -4 * dt, 4 * dt);
+          var spd = Math.hypot(s.vx, s.vy);
+          s.vx = Math.cos(have + turn) * spd;
+          s.vy = Math.sin(have + turn) * spd;
+        }
+      }
       s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt;
       if (s.life <= 0 || s.x < -40 || s.x > 1000 || s.y < -40 || s.y > 640) this.shots.splice(i, 1);
     }
@@ -81,9 +139,19 @@
         s = this.shots[i];
         if (Math.hypot(s.x - en.x, s.y - en.y) < s.r + en.r) {
           this.shots.splice(i, 1);
+          // a shielded saucer pops its bubble first, and survives the shot
+          if (en.shield > 0) {
+            en.shield--;
+            en.hurt = 0.22;
+            W.fx.sparkle(en.x, en.y, 14, 90);
+            if (W.audio) W.audio.play('pop');
+            if (s.bomb) this.burst(s.x, s.y, en);
+            continue;
+          }
           en.hp -= 1;
           en.hurt = 0.22;
           W.fx.sparkle(s.x, s.y, 6, 40);
+          if (s.bomb) this.burst(s.x, s.y, en);
           if (W.audio) W.audio.play('hit');
           if (en.hp <= 0) {
             W.fx.sparkle(en.x, en.y, 26, 150);

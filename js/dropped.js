@@ -19,11 +19,16 @@
   W.dropped = {
     list: list,
 
-    /* Put the LAST basket item down at (x, y). */
+    /* Put down whatever Bobby is HOLDING at (x, y). */
     drop: function (room, x, y) {
-      var b = W.game.state.basket;
-      if (!b.length) return null;
-      var id = b.pop();
+      var id = W.hands.take();
+      if (!id) return null;
+      return W.dropped.dropItem(room, id, x, y);
+    },
+
+    /* Place a specific item on the floor (used when a pickup displaces
+     * whatever was already in his paws). */
+    dropItem: function (room, id, x, y) {
       var l = list(room);
       l.push({ id: id, x: Math.round(x + (W.mulberry32(W.hash(room + l.length))() - 0.5) * 18),
                y: Math.round(y + 6) });
@@ -35,14 +40,16 @@
       return id;
     },
 
-    /* Pick a specific entry back up. */
+    /* Pick a specific entry back up — raw goes to the tray, anything else
+     * to his paws (displacing whatever was there onto the floor). */
     take: function (room, entry) {
-      if (W.basket.full()) return false;
+      if (W.isRaw(entry.id) && W.tray.full()) return false;
       var l = list(room);
       var i = l.indexOf(entry);
       if (i < 0) return false;
       l.splice(i, 1);
-      W.basket.add(entry.id);
+      W.stow(entry.id);
+      if (W.lastBumped) W.dropped.dropItem(room, W.lastBumped, entry.x, entry.y);
       return true;
     },
 

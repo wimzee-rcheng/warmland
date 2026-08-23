@@ -20,6 +20,39 @@
         var yy = y0 + 8 + i * (h / 9);
         C.line(g, -6, yy, 966, yy, { seed: 'pl' + i, stroke: PAL.woodDk, lw: 1.8, wob: 1.6, passes: 1, strokeAlpha: 0.45 });
       }
+    } else if (room.floor === 'dirt') {
+      C.rect(g, -6, y0, 972, h, { seed: 'fl', fill: '#C9A882', stroke: null, hatch: 5, wash: 0.5, fillAlpha: 0.45 });
+      var drnd = W.mulberry32(W.hash('dirt'));
+      for (var dp = 0; dp < 70; dp++) {
+        var dx2 = drnd() * 960, dy2 = y0 + drnd() * h;
+        C.dot(g, dx2, dy2, 2 + drnd() * 4, drnd() < 0.5 ? '#B08F63' : '#8A5F38', 'dg' + dp);
+      }
+      // a few short tyre tracks, not stripes across the whole lot
+      for (var tk = 0; tk < 6; tk++) {
+        var tx2 = 60 + drnd() * 760, ty2 = y0 + 40 + drnd() * (h - 80);
+        C.line(g, tx2, ty2, tx2 + 90 + drnd() * 70, ty2 + (drnd() - 0.5) * 26, {
+          seed: 'trk' + tk, stroke: '#8A5F38', lw: 6, wob: 2.4, passes: 1, strokeAlpha: 0.28
+        });
+      }
+    } else if (room.floor === 'planks') {
+      // treehouse boards: wider, gappier and knottier than house flooring
+      C.rect(g, -6, y0, 972, h, { seed: 'fl', fill: '#C9A882', stroke: null, hatch: 5, wash: 0.5, fillAlpha: 0.4 });
+      var prnd = W.mulberry32(W.hash('planks'));
+      for (var pk = 0; pk < 7; pk++) {
+        var py0 = y0 + 6 + pk * (h / 7);
+        C.line(g, -6, py0, 966, py0, { seed: 'pg' + pk, stroke: '#6B4A2A', lw: 3.4, wob: 1.8, passes: 1, strokeAlpha: 0.6 });
+        C.line(g, -6, py0 + 3, 966, py0 + 3, { seed: 'pg2' + pk, stroke: '#E4CDA8', lw: 1.6, wob: 1.6, passes: 1, strokeAlpha: 0.4 });
+        // a couple of knots and end-seams per board
+        for (var kn = 0; kn < 3; kn++) {
+          var kx = 60 + prnd() * 840;
+          C.ellipse(g, kx, py0 + 22 + prnd() * 14, 6, 4, {
+            seed: 'kn' + pk + kn, stroke: '#8A5F38', lw: 1.8, wob: 1, passes: 1, strokeAlpha: 0.55
+          });
+          C.line(g, kx + 120, py0, kx + 120, py0 + h / 7, {
+            seed: 'sm' + pk + kn, stroke: '#8A5F38', lw: 1.6, wob: 1.2, passes: 1, strokeAlpha: 0.3
+          });
+        }
+      }
     } else if (room.floor === 'tile') {
       C.rect(g, -6, y0, 972, h, { seed: 'fl', fill: '#CFE4D6', stroke: null, hatch: 6, wash: 0.34, fillAlpha: 0.28 });
       for (var c = 0; c < 13; c++) {
@@ -70,11 +103,18 @@
       wallDotTile = C.offscreen(14, 14);
       C.dot(wallDotTile.getContext('2d'), 7, 7, 4, PAL.white, 'wd');
     }
+    // A plank wall with polka dots looks like wallpaper, so the treehouse
+    // gets knot-coloured ones — they still light up as stars after dark.
+    if (!knotDotTile) {
+      knotDotTile = C.offscreen(14, 14);
+      C.dot(knotDotTile.getContext('2d'), 7, 7, 3.4, '#8A5F38', 'kd');
+    }
+    var dotTile = room.floor === 'planks' ? knotDotTile : wallDotTile;
     var dots = dotsCache[room.name] = [];
     for (var r = 0; r < 3; r++) {
       for (var c = 0; c < 16; c++) {
         var dx = 24 + c * 62 + (r % 2) * 31, dy = 26 + r * 46;
-        g.drawImage(wallDotTile, dx - 7, dy - 7);
+        g.drawImage(dotTile, dx - 7, dy - 7);
         dots.push([dx, dy]);
       }
     }
@@ -82,6 +122,50 @@
     C.rect(g, -6, room.wallH - 12, 972, 12, {
       seed: 'skirt', fill: PAL.white, stroke: null, hatch: 4, wash: 0.6, fillAlpha: 0.3
     });
+  }
+
+  /* A room narrower than the screen needs its edges explained. The
+   * treehouse deck ends in open air, so the leftover strips become
+   * treetop — that is what makes the little room feel little. */
+  function paintCanopy(g, room) {
+    var b = room.bounds;
+    var edges = [[-6, b.x + 6], [b.x + b.w - 6, 966]];
+    var rnd = W.mulberry32(W.hash('canopy' + room.name));
+    for (var e = 0; e < edges.length; e++) {
+      var x0 = edges[e][0], x1 = edges[e][1];
+      if (x1 - x0 < 8) continue;
+      C.rect(g, x0, -6, x1 - x0, 612, {
+        seed: 'cnp' + e, fill: PAL.grassDk, stroke: null, hatch: 5, wash: 0.62, fillAlpha: 0.55
+      });
+      for (var i = 0; i < 26; i++) {
+        var lx = x0 + rnd() * (x1 - x0), ly = rnd() * 600;
+        C.ellipse(g, lx, ly, 22 + rnd() * 16, 15 + rnd() * 10, {
+          seed: 'lf' + e + i, fill: rnd() < 0.5 ? PAL.grass : '#6FA84B',
+          stroke: '#4E7A3A', lw: 2.2, hatch: 4, wash: 0.72
+        });
+      }
+      // the sawn edge of the deck
+      var ex = e === 0 ? b.x + 6 : b.x + b.w - 6;
+      C.line(g, ex, room.wallH || 0, ex, 600, {
+        seed: 'edge' + e, stroke: '#6B4A2A', lw: 6, wob: 1.6
+      });
+    }
+    // and the deck ends at the bottom too
+    var by = b.y + b.h + 18;
+    g.save();
+    g.globalCompositeOperation = 'source-over';
+    C.rect(g, b.x - 2, by, b.w + 4, 606 - by, {
+      seed: 'deckbelow', fill: PAL.grassDk, stroke: null, hatch: 4, wash: 0.95, fillAlpha: 0.92
+    });
+    g.restore();
+    for (var j = 0; j < 9; j++) {
+      C.ellipse(g, b.x + 20 + rnd() * (b.w - 40), by + 12 + rnd() * (600 - by - 12),
+        22 + rnd() * 14, 14 + rnd() * 9, {
+          seed: 'blf' + j, fill: rnd() < 0.5 ? PAL.grass : '#6FA84B',
+          stroke: '#4E7A3A', lw: 2.2, hatch: 4, wash: 0.72
+        });
+    }
+    C.line(g, b.x, by, b.x + b.w, by, { seed: 'deckend', stroke: '#6B4A2A', lw: 6, wob: 1.8 });
   }
 
   function paintDoors(g, room) {
@@ -100,9 +184,12 @@
           outline: 3, outlineColor: PAL.outline, seed: 'dl' + i
         });
       } else if (d.art === 'sign') {
-        var sx = W.clamp(d.x + d.w / 2, 58, 902), sy = d.y + d.h / 2;
+        // the board grows with the label — 'Ice Cream' used to run off the end
+        var lw2 = C.textWidth(g, d.label, 17);
+        var half = Math.max(46, lw2 / 2 + 30);
+        var sx = W.clamp(d.x + d.w / 2, half + 12, 948 - half), sy = d.y + d.h / 2;
         C.line(g, sx, sy + 40, sx, sy - 30, { seed: 'sp' + i, stroke: PAL.woodDk, lw: 7, wob: 1 });
-        C.roundRect(g, sx - 46, sy - 62, 92, 34, 6, {
+        C.roundRect(g, sx - half, sy - 62, half * 2, 34, 6, {
           seed: 'sb' + i, fill: PAL.wood, stroke: PAL.outline, lw: 2.8, hatch: 3.4, wash: 0.7
         });
         C.text(g, d.label, sx, sy - 40, {
@@ -110,7 +197,8 @@
         });
         // an arrow pointing off the edge
         var dirx = d.x < 480 ? -1 : 1;
-        C.poly(g, [[sx + dirx * 30, sy - 52], [sx + dirx * 30, sy - 38], [sx + dirx * 42, sy - 45]], {
+        C.poly(g, [[sx + dirx * (half - 16), sy - 52], [sx + dirx * (half - 16), sy - 38],
+                   [sx + dirx * (half - 4), sy - 45]], {
           seed: 'sa' + i, fill: PAL.roof, stroke: PAL.outline, lw: 2, hatch: 2.4, wash: 0.85
         });
       } else if (d.art === 'mat') {
@@ -131,6 +219,7 @@
     g.drawImage(C.paper(960, 600, 'paper' + name), 0, 0);
     paintWall(g, room);
     paintFloor(g, room);
+    if (room.frame === 'leaves') paintCanopy(g, room);
     paintDoors(g, room);
     // flat props (rugs, flowers) belong on the ground, never in the sort
     effectiveProps(name).forEach(function (p) {
@@ -146,6 +235,38 @@
    * the treehouse once Bobby has built it. */
   function effectiveProps(name) {
     var base = W.ROOMS[name].props.map(function (p) {
+      // a plot nobody has broken yet is still lawn
+      if (p.plot) {
+        var bucket = W.game.state.stations[name + ':' + p.plot];
+        if (!bucket || bucket.stage === undefined || bucket.stage < 0) {
+          var sd = {};
+          for (var k2 in p) sd[k2] = p[k2];
+          sd.kind = 'sodPatch';
+          return sd;
+        }
+      }
+      // the friends' house grows a stage at a time
+      if (p.stage) {
+        var hs = {};
+        for (var k4 in p) hs[k4] = p[k4];
+        hs.kind = 'houseS' + Math.min(3, (W.game.state.builds || {}).friendHouse || 0);
+        return hs;
+      }
+      // things Bobby has yet to build show a chalk outline instead
+      if (p.buildSite && !(W.game.state.builds || {})[p.buildSite]) {
+        if (!p.marker) return null;
+        var mk = {};
+        for (var k5 in p) mk[k5] = p[k5];
+        mk.kind = 'buildSpot';
+        mk.tint = p.marker;
+        return mk;
+      }
+      if (p.kind === 'swingSet' && !(W.game.state.builds || {}).swing) {
+        var bk = {};
+        for (var k3 in p) bk[k3] = p[k3];
+        bk.kind = 'swingBroken';
+        return bk;
+      }
       if (p.buildable && W.game.state.builtTreehouse) {
         var q = {};
         for (var k in p) q[k] = p[k];
@@ -154,7 +275,7 @@
         return q;
       }
       return p;
-    });
+    }).filter(Boolean);
     // purchased decor lands on the room's decor spots
     var decor = W.game.state.decor[name] || [];
     var spots = W.ROOMS[name].decorSpots || [];
@@ -169,7 +290,11 @@
   function buildSprites(name) {
     return effectiveProps(name)
       .filter(function (p) { return W.PROPS[p.kind].h !== 0; })
-      .map(function (p) { return W.makePropSprite(p); });
+      .map(function (p) {
+        var sp = W.makePropSprite(p);
+        sp.kind = p.kind;          // so a machine can drive away from its spot
+        return sp;
+      });
   }
 
 
@@ -214,6 +339,35 @@
         outline: 3, outlineColor: PAL.outline, seed: 'ndl' + i
       });
     });
+
+    // Outdoors there is no wallpaper to turn into stars, so the sky gets
+    // a real one — this is the whole point of sleeping on the mountain.
+    if (!room.wallH) {
+      var srnd = W.mulberry32(W.hash('stars' + name));
+      for (var s2 = 0; s2 < 90; s2++) {
+        var sx2 = srnd() * 960, sy2 = srnd() * 420;
+        var sr2 = 2 + srnd() * 4;
+        var sg = g.createRadialGradient(sx2, sy2, 1, sx2, sy2, sr2 * 3);
+        sg.addColorStop(0, 'rgba(255,252,214,0.5)');
+        sg.addColorStop(1, 'rgba(255,252,214,0)');
+        g.fillStyle = sg;
+        g.fillRect(sx2 - sr2 * 3, sy2 - sr2 * 3, sr2 * 6, sr2 * 6);
+        C.star(g, sx2, sy2, sr2, '#FFFCE0', 'os' + s2);
+      }
+      // one constellation, joined up — a little bear, naturally
+      var CONST = [[120, 90], [180, 70], [240, 96], [300, 78], [330, 130], [280, 160], [210, 150]];
+      for (var c2 = 0; c2 < CONST.length; c2++) {
+        C.star(g, CONST[c2][0], CONST[c2][1], 7, '#CFFFE0', 'cs' + c2);
+        if (c2) {
+          C.line(g, CONST[c2 - 1][0], CONST[c2 - 1][1], CONST[c2][0], CONST[c2][1], {
+            seed: 'cl' + c2, stroke: '#CFFFE0', lw: 1.6, wob: 1.2, passes: 1, strokeAlpha: 0.4
+          });
+        }
+      }
+      C.text(g, 'the Little Bear', 225, 190, {
+        size: 14, align: 'center', color: '#CFFFE0', seed: 'consn'
+      });
+    }
 
     // the dots become stars
     var dots = dotsCache[room.name] || [];
@@ -343,6 +497,7 @@
   }
 
   var bgCache = {}, nightCache = {}, spriteCache = {}, dotsCache = {};
+  var knotDotTile = null;
   var wallDotTile = null, snowTile = null;
 
   /* Throw away a room's baked art so it rebuilds — used when the treehouse
@@ -426,6 +581,10 @@
     S.player.dir = (param && param.dir) || 'down';
     S.seated = null;
     S.sleeping = null;
+    S.riding = null;
+    S.driving = null;
+    S.mealSeq = null;
+    S.mealCalled = false;
     S.idleT = 0; S.wiggleT = 0;
     S.npcs = spawnResidents(name);
     S.lock = 0.25;
@@ -465,18 +624,339 @@
     return l ? l[Math.floor(Math.random() * l.length)] : null;
   }
 
-  /* Nearest standable point to (x,y), searching outward in rings. */
+  /* Nearest standable point to (x,y), searching outward in rings. The room
+   * spawn is the last resort: a child wedged inside the scenery with no way
+   * out is the worst bug this game can have. */
   function spotNear(x, y) {
-    for (var r = 12; r <= 120; r += 12) {
-      for (var a = 0; a < 8; a++) {
-        var nx = x + Math.cos(a * Math.PI / 4) * r;
-        var ny = y + Math.sin(a * Math.PI / 4) * r;
+    for (var r = 12; r <= 220; r += 12) {
+      for (var a = 0; a < 12; a++) {
+        var nx = x + Math.cos(a * Math.PI / 6) * r;
+        var ny = y + Math.sin(a * Math.PI / 6) * r;
         if (W.canStand(S.room, S.solids, nx, ny)) return [nx, ny];
       }
     }
-    return null;
+    var sp = S.room.spawn;
+    return W.canStand(S.room, S.solids, sp[0], sp[1]) ? [sp[0], sp[1]] : null;
   }
   S.spotNear = spotNear;
+
+  /* ---- rides -------------------------------------------------------
+   * The swing and the see-saw both park Bobby on a moving thing and let
+   * a friend join in. Arrows (or X) get off again.
+   */
+
+  /* The first friend trailing along, or null. */
+  S.follower = function () {
+    for (var i = 0; i < S.npcs.length; i++) {
+      var n = S.npcs[i];
+      if (n.friendKey && n.mode === 'follow') return n;
+    }
+    return null;
+  };
+
+  S.mount = function (kind, st) {
+    if (kind === 'flop') {
+      S.riding = { kind: 'flop', st: st, t: 0, partner: null };
+      W.fx.dust(st.x + st.w / 2, st.y + st.h, 5);
+      W.say('Flooooomp.', PAL.accent);
+      if (W.audio) W.audio.play('land');
+      return;
+    }
+    var partner = S.follower();
+    S.riding = { kind: kind, st: st, t: 0, partner: partner };
+    if (partner) {
+      partner.mode = 'hold';
+      partner.hidden = true;
+      partner.says(kind === 'swing' ? 'Wheee!' : 'Up we go!', 2.4);
+    }
+    W.say(kind === 'swing' ? 'Wheeeee!' : 'Up... and down... and up!', PAL.accent);
+    if (W.audio) W.audio.play('cheer');
+  };
+
+  S.dismount = function () {
+    if (!S.riding) return;
+    var r = S.riding;
+    if (r.partner) {
+      r.partner.hidden = false;
+      r.partner.mode = 'follow';
+    }
+    S.player.x = r.st.x + r.st.w / 2;
+    S.player.y = r.st.y + r.st.h + 18;
+    S.riding = null;
+  };
+
+  /* Where a rider sits right now: the swing swings, the plank tips. */
+  S.ridePos = function (which) {
+    var r = S.riding, st = r.st;
+    if (r.kind === 'flop') {
+      // a big squash on landing that wobbles out into a slouch
+      var settle = Math.max(0, 0.5 - r.t) * 2;              // 1 -> 0
+      return {
+        x: st.x + st.w / 2,
+        y: st.y + st.h / 2 + 14 + settle * 6,
+        spin: Math.sin(r.t * 1.6) * 0.05,
+        scale: 0.82 - settle * 0.06,
+        squash: 1 + settle * 0.12
+      };
+    }
+    if (r.kind === 'swing') {
+      var pivot = [st.x + 60, st.y - 66];
+      var ang = Math.sin(r.t * 2.1) * 0.62 * (which ? -1 : 1);
+      var L = 58;
+      return {
+        x: pivot[0] + (which ? 22 : -22) + Math.sin(ang) * L,
+        y: pivot[1] + Math.cos(ang) * L,
+        spin: -ang * 0.55
+      };
+    }
+    var tip = Math.sin(r.t * 1.7) * 26;
+    return {
+      x: st.x + (which ? st.w - 22 : 22),
+      y: st.y + 4 + (which ? -tip : tip),
+      spin: 0
+    };
+  };
+
+  /* ---- the building site -------------------------------------------
+   * Pressing Z at a machine puts Bobby in the cab and DRIVES it to the
+   * house: out, work, back. The machine is the same baked sprite, blitted
+   * at an offset, so a moving digger costs no more than a parked one.
+   */
+  // the machine parks in FRONT of the house so you can see it working
+  var SITE_TARGET = [470, 452];
+  var WORK_ART = [470, 384];
+
+  S.driveMachine = function (st, kind, onDone) {
+    if (S.driving) return false;
+    var sp = null;
+    for (var i = 0; i < S.sprites.length; i++) {
+      if (S.sprites[i].kind === kind) { sp = S.sprites[i]; break; }
+    }
+    S.driving = {
+      st: st, kind: kind, sprite: sp, onDone: onDone,
+      phase: 'out', t: 0, dx: 0, dy: 0,
+      home: [st.x + st.w / 2, st.y + st.h / 2],
+      done: false
+    };
+    if (W.audio) W.audio.play('thud');
+    return true;
+  };
+
+  function updateDrive(dt) {
+    var d = S.driving;
+    d.t += dt;
+    var hx = d.home[0], hy = d.home[1];
+    var tx = SITE_TARGET[0] - hx, ty = SITE_TARGET[1] - hy;
+
+    if (d.phase === 'out') {
+      var k = Math.min(1, d.t / 1.6);
+      d.dx = tx * k; d.dy = ty * k;
+      if (Math.random() < dt * 14) W.fx.dust(hx + d.dx - 40, hy + d.dy + 16, 1);
+      if (k >= 1) { d.phase = 'work'; d.t = 0; if (W.audio) W.audio.play('hammer'); }
+    } else if (d.phase === 'work') {
+      d.dx = tx + Math.sin(d.t * 7) * (d.kind === 'bulldozer' ? 10 : 3);
+      d.dy = ty;
+      if (Math.random() < dt * 20) {
+        W.fx.dust(WORK_ART[0] + (Math.random() - 0.5) * 200,
+                  WORK_ART[1] + 30 + Math.random() * 20, 1);
+      }
+      if (d.t > 2.4) {
+        d.phase = 'back'; d.t = 0;
+        if (!d.done) { d.done = true; if (d.onDone) d.onDone(); }
+      }
+    } else {
+      var k2 = Math.min(1, d.t / 1.3);
+      d.dx = tx * (1 - k2); d.dy = ty * (1 - k2);
+      if (k2 >= 1) {
+        S.driving = null;
+        S.player.x = hx;
+        S.player.y = hy + 44;
+        if (!W.canStand(S.room, S.solids, S.player.x, S.player.y)) {
+          var out = spotNear(S.player.x, S.player.y);
+          if (out) { S.player.x = out[0]; S.player.y = out[1]; }
+        }
+      }
+    }
+  }
+
+  /* The load each machine is carrying, drawn over the work site. */
+  function drawMachineWork(ctx) {
+    var d = S.driving, G = W.game;
+    if (!d) return;
+    var wx = WORK_ART[0], wy = WORK_ART[1];
+    var working = d.phase === 'work';
+    if (d.kind === 'mixer' && working) {
+      // a grey stream of concrete pouring out of the drum
+      for (var i = 0; i < 5; i++) {
+        var t2 = (G.t * 2.2 + i / 5) % 1;
+        C.dot(ctx, wx + 40 - t2 * 30, wy - 40 + t2 * 66, 6 - t2 * 2, '#C4BCAE', 'pour' + i);
+      }
+    } else if (d.kind === 'crane' && working) {
+      // a wall panel swinging up on the hook
+      var lift = Math.min(1, d.t / 2.0);
+      C.rect(ctx, wx - 34, wy - 40 - lift * 90, 74, 46, {
+        seed: 'panel', fill: W.PAL.wood, stroke: W.PAL.outline, lw: 3, hatch: 3.6, wash: 0.75
+      });
+      C.line(ctx, wx + 3, wy - 40 - lift * 90, wx + 3, wy - 150, {
+        seed: 'cable', stroke: W.PAL.outline, lw: 2.4, wob: 0.8
+      });
+    } else if (d.kind === 'bulldozer' && working) {
+      // a heap of junk being shoved along
+      for (var r = 0; r < 5; r++) {
+        C.rect(ctx, wx - 90 + r * 16 + Math.sin(G.t * 7) * 6, wy + 6 + (r % 2) * 10, 18, 10, {
+          seed: 'junk' + r, fill: r % 2 ? '#C4BCAE' : W.PAL.wood,
+          stroke: W.PAL.outline, lw: 2, hatch: 2.6, wash: 0.75
+        });
+      }
+    } else if (d.kind === 'toolbox' && working) {
+      if (Math.random() < 0.25) W.fx.sparkle(wx + (Math.random() - 0.5) * 160, wy - 60, 1, 30);
+    }
+  }
+
+  /* ---- dinner ------------------------------------------------------
+   * Placing a dish seats Bobby. Eating is a deliberate act with a real
+   * animation, because a meal that finishes instantly feels like nothing
+   * happened at all.
+   */
+
+  /* A: everyone in the room drops what they're doing and takes a chair. */
+  S.callToDinner = function (table) {
+    var seats = S.stations.filter(function (c) {
+      return c.kind === 'chair' && c !== S.seated && !c.s.taker;
+    });
+    var i = 0, called = 0;
+    S.npcs.forEach(function (n) {
+      if (!n.friendKey && !n.isPet) return;
+      if (n.data.prevMode === undefined) n.data.prevMode = n.mode;
+      if (n.isPet) {
+        // the pup waits hopefully under the table
+        n.mode = 'goto';
+        n.data.tx = table.x + table.w / 2;
+        n.data.ty = table.y + table.h + 26;
+        n.data.tol = 12;
+        n.data.diner = true;
+        n.says('!!', 2);
+        called++;
+        return;
+      }
+      var seat = seats[i++];
+      n.mode = 'goto';
+      n.data.faceDir = 'down';
+      if (seat) {
+        seat.s.taker = n.friendKey;
+        n.data.tx = seat.x + seat.w / 2;
+        n.data.ty = seat.y + seat.h / 2 + 4;
+        n.data.seat = seat;
+      } else {
+        // no chair left — stand at the table edge, still part of dinner
+        n.data.tx = table.x + 12 + (i * 34) % table.w;
+        n.data.ty = table.y + table.h + 22;
+      }
+      n.data.tol = 10;
+      n.data.diner = true;
+      n.says(['yum!!', 'dinner!', 'ooooh!'][i % 3], 2.4);
+      called++;
+    });
+    S.mealCalled = true;
+    if (called) {
+      W.say('Everyone to the table!', PAL.accent);
+      if (W.audio) W.audio.play('ding');
+    } else {
+      W.say('Nobody else is here right now.');
+    }
+  };
+
+  /* Z: the meal itself — bite by bite, together. */
+  S.startMeal = function (table) {
+    if (S.mealSeq) return;
+    var diners = [S.player];
+    S.npcs.forEach(function (n) {
+      if (!n.data.diner) return;
+      // Anyone still shuffling round the furniture takes their seat now —
+      // a straight-line walk can snag on the table, and nobody should miss
+      // dinner because a chair was on the far side of it.
+      if (n.data.tx != null) { n.x = n.data.tx; n.y = n.data.ty; }
+      n.mode = 'hold';
+      diners.push(n);
+    });
+    S.mealSeq = {
+      t: 0, table: table, diners: diners,
+      total: diners.length > 1 ? 5 : 3.5,
+      bites: 0, said: 0
+    };
+    table.s.biteStage = 0;
+    if (W.audio) W.audio.play('chomp');
+  };
+
+  function updateMeal(dt) {
+    var m = S.mealSeq, G = W.game;
+    m.t += dt;
+
+    // chew on a shared rhythm, each diner slightly offset
+    var wantBites = Math.min(3, Math.floor((m.t / m.total) * 4));
+    if (wantBites > m.bites) {
+      m.bites = wantBites;
+      m.table.s.biteStage = wantBites;
+      if (W.audio) W.audio.play('chomp');
+      for (var d = 0; d < m.diners.length; d++) {
+        var who = m.diners[d];
+        W.fx.dust(who.x + (Math.random() - 0.5) * 20, who.y - 40, 2);
+      }
+    }
+    // mid-meal delight
+    if (m.t > m.total * 0.4 && m.said === 0) {
+      m.said = 1;
+      var pick = m.diners[Math.floor(Math.random() * m.diners.length)];
+      if (pick !== S.player && pick.says) pick.says('Mmm!', 2);
+      else W.say('Mmm! So good.', PAL.accent);
+    }
+    if (m.t > m.total * 0.72 && m.said === 1) {
+      m.said = 2;
+      var pick2 = m.diners[Math.floor(Math.random() * m.diners.length)];
+      if (pick2 !== S.player && pick2.says) pick2.says('Keena Meena!', 2.2);
+    }
+
+    if (m.t >= m.total) finishMeal();
+  }
+
+  function finishMeal() {
+    var m = S.mealSeq, G = W.game;
+    if (!m) return;
+    var n = m.diners.length;
+    m.table.s.set.shift();
+    m.table.s.biteStage = 0;
+    G.state.plates.dirty += n;
+    G.state.meals = (G.state.meals || 0) + 1;
+    W.fx.sparkle(m.table.x + m.table.w / 2, m.table.y - 20, 18, 90);
+    for (var d = 0; d < m.diners.length; d++) {
+      W.fx.hearts(m.diners[d].x, m.diners[d].y - 80, 3);
+    }
+    W.say(n > 1 ? 'What a feast — together!' : 'Mmm! All gone.', PAL.accent);
+    if (W.audio) { W.audio.play('aaah'); W.audio.play('love'); }
+    G.idea('cook');
+    if (n > 1) G.first('feast', 'First dinner with friends!');
+    // a beat of contentment, then everyone gets on with their day
+    S.npcs.forEach(function (x) {
+      if (!x.data.diner) return;
+      x.data.diner = false;
+      if (x.data.seat) { x.data.seat.s.taker = null; x.data.seat = null; }
+      x.data.faceDir = null;
+      // A chair is SOLID, and dinner seats them inside it — push everyone
+      // back onto open floor or they are wedged there forever.
+      if (!W.canStand(S.room, S.solids, x.x, x.y)) {
+        var out = spotNear(x.x, x.y);
+        if (out) { x.x = out[0]; x.y = out[1]; }
+      }
+      x.data.tx = null; x.data.ty = null; x.data.pause = 0.4 + Math.random();
+      // followers go back to following; everyone else just wanders — a
+      // stale 'goto' would aim them at a target that no longer exists
+      x.mode = x.data.prevMode === 'follow' ? 'follow' : 'wander';
+      x.data.prevMode = undefined;
+    });
+    S.mealCalled = false;
+    S.mealSeq = null;
+  }
+  S.finishMeal = finishMeal;
 
   /* Bedtime, called by the bed stations. */
   S.startSleep = function (wakeAt) {
@@ -484,7 +964,7 @@
                W.game.state.party.length > 0;
     S.sleeping = { phase: 'lie', t: 0, sleepover: over, wakeAt: wakeAt };
     // the dark bake happens NOW, behind the lie-down, not as a freeze later
-    if (S.room.wallH) nightBg(S.name);
+    nightBg(S.name);          // indoors or out, night has its own bake
 
     // everyone else heads for a sleeping bag or tent
     var spots = [];
@@ -527,7 +1007,7 @@
 
   function drinkBoba() {
     var G = W.game;
-    W.basket.remove('boba');
+    W.hands.drop();
     var kinds = ['giant', 'tiny', 'disco', 'toots'];
     var kind = kinds[Math.floor(Math.random() * kinds.length)];
     G.bobaFx = { kind: kind, until: G.t + 15 };
@@ -554,14 +1034,41 @@
     return 1;
   }
 
+  /* How far Bobby's neck is currently stretched, in pixels. */
+  W.neckStretch = function () {
+    var fx = W.game.bobaFx;
+    if (!fx || fx.kind !== 'longneck') return 0;
+    var left = fx.until - W.game.t;
+    var grow = Math.min(1, (15 - left) / 1.2);       // boings up over a second
+    var shrink = Math.min(1, left / 1.2);
+    return 56 * Math.min(grow, shrink);
+  };
+
   S.update = function (dt) {
     var G = W.game;
-    if (pendingRebuild) {
+    // A rebuild tears the room down and re-enters it, so it has to wait for
+    // any sequence that owns the screen (a machine mid-drive, a meal, a ride).
+    if (pendingRebuild && !S.driving && !S.mealSeq && !S.riding && !S.sleeping) {
       var rb = pendingRebuild;
       pendingRebuild = null;
       W.rebuildRoom(rb);
     }
     S.lock = Math.max(0, S.lock - dt);
+
+    /* Safety net: if Bobby is ever inside something solid (a rebuild dropped
+     * a prop on him, a sequence put him somewhere odd), walk him out. */
+    if (!S.sleeping && !S.seated && !S.riding && !S.mealSeq && !S.driving &&
+        !(S.player.jumpT > 0) &&
+        !W.canStand(S.room, S.solids, S.player.x, S.player.y)) {
+      S.stuckT = (S.stuckT || 0) + dt;
+      if (S.stuckT > 0.35) {
+        var esc = spotNear(S.player.x, S.player.y);
+        if (esc) { S.player.x = esc[0]; S.player.y = esc[1]; }
+        S.stuckT = 0;
+      }
+    } else {
+      S.stuckT = 0;
+    }
 
     // always drain at least one pose per frame — a stalled queue means the
     // bake happens synchronously inside draw instead, which is worse
@@ -571,6 +1078,47 @@
     W.dialogue.update(dt);
     W.fx.update(dt);
     S.player.update(dt);
+
+    // ------- Bobby is in a machine cab; the site does the rest
+    if (S.driving) {
+      updateDrive(dt);
+      W.updateNPCs(S.npcs, S.room, S.solids, dt, S.player);
+      S.prompt = { text: 'Working...', locked: true };
+      W.dialogue.update(dt);
+      return;
+    }
+
+    // ------- a ride owns the controls until Bobby hops off
+    if (S.riding) {
+      S.riding.t += dt;
+      var rr = S.riding;
+      if (Math.random() < dt * 2) {
+        var p0 = S.ridePos(0);
+        W.fx.sparkle(p0.x, p0.y - 30, 1, 30);
+      }
+      W.updateNPCs(S.npcs, S.room, S.solids, dt, S.player);
+      var ax0 = W.input.axis();
+      if (W.input.hit('back') || ax0[0] || ax0[1]) S.dismount();
+      S.prompt = {
+        text: rr.kind === 'flop' ? 'Cosy! (arrows to get up)' : 'Wheee! (arrows to hop off)',
+        locked: true
+      };
+      if (rr.kind === 'flop' && Math.random() < dt * 1.2) {
+        W.fx.zzz(S.player.x + 16, S.player.y - 50);
+      }
+      W.dialogue.update(dt);
+      return;
+    }
+
+    // ------- the meal runs to its own rhythm; X hurries it along
+    if (S.mealSeq) {
+      updateMeal(dt);
+      W.updateNPCs(S.npcs, S.room, S.solids, dt, S.player);
+      if (W.input.hit('back')) finishMeal();
+      S.prompt = { text: 'Munch munch munch...', locked: true };
+      W.dialogue.update(dt);
+      return;
+    }
 
     // ------- bedtime sequence: nothing else runs while asleep
     if (S.sleeping) {
@@ -601,6 +1149,8 @@
         if (sl.t > 3.0) { sl.phase = 'wake'; sl.t = 0; }
       } else if (sl.phase === 'wake' && sl.t > 1.0) {
         S.sleeping = null;
+        // morning really arrives: a camp left in night mode wakes to daylight
+        if (S.room.canNight) G.state.lights[S.name] = true;
         // step out of bed onto verified floor — never wake inside a solid
         var wa = sl.wakeAt || [S.player.x, S.player.y + 40];
         if (!W.canStand(S.room, S.solids, wa[0], wa[1])) {
@@ -661,10 +1211,16 @@
 
     if (S.seated) {
       if (ax !== 0 || ay !== 0) {
-        // stand up in front of the chair
-        S.player.x = S.seated.x + S.seated.w / 2;
-        S.player.y = S.seated.y + S.seated.h + 16;
+        // stand up in front of the chair, on ground he can actually stand on
+        var upx = S.seated.x + S.seated.w / 2, upy = S.seated.y + S.seated.h + 16;
+        if (!W.canStand(S.room, S.solids, upx, upy)) {
+          var clear = spotNear(upx, upy);
+          if (clear) { upx = clear[0]; upy = clear[1]; }
+        }
+        S.player.x = upx;
+        S.player.y = upy;
         S.seated = null;
+        S.mealCalled = false;
       }
     } else {
       S.player.move(S.room, S.solids, ax, ay, dt, run);
@@ -738,36 +1294,68 @@
       }
     }
 
-    // ------- what can Bobby do right now? (priority: serve, station,
-    //         pick up, talk, then drink/drop as the fallback)
+    // ------- what can Bobby do right now?
+    //   Z = the world (stations, pickups, the held item)
+    //   A = people (Trix, chat, gifts, petting, calling to dinner)
+    //   X = stopping (Dee, clock off, stand up)
     S.prompt = null; S.promptStation = null; S.talkTo = null;
-    S.pickupTarget = null; S.serveTo = null;
+    S.pickupTarget = null; S.serveTo = null; S.giftTo = null;
+    S.eatMode = false; S.callMode = false;
     var px = S.player.x, py = S.player.y;
+    var held = G.state.held;
+
+    // the nearest soul is ALWAYS tracked, whatever the visible prompt is
+    var best = null, bestD = 70;
+    for (var n = 0; n < S.npcs.length; n++) {
+      var np = S.npcs[n];
+      var dd = Math.hypot(np.x - px, np.y - py);
+      if (dd < bestD) { bestD = dd; best = np; }
+    }
+    S.talkTo = best;
+    if (best && !best.isPet) {
+      var fdef0 = W.FRIENDS[best.friendKey];
+      if (fdef0 && fdef0.likes && held === fdef0.likes) S.giftTo = best;
+    }
+
+    /* The social half of the pill: what A would do right now. */
+    function socialLabel() {
+      if (!best) return null;
+      if (best.isPet) return W.hands.has('treat') ? 'treat' : 'pet';
+      if (S.giftTo === best) return 'give it';
+      return G.state.party.indexOf(best.friendKey) >= 0 ? 'chat' : 'say Trix';
+    }
 
     if (S.seated) {
-      // seated: the only prompt is eating off an adjacent set table
-      var eatAt = null;
+      var atTable = null;
       for (var t2 = 0; t2 < S.stations.length; t2++) {
         var ts = S.stations[t2];
-        if (ts.kind === 'table' && ts.s.set && ts.s.set.length &&
-            rectDist(px, py, ts) < 110) { eatAt = ts; break; }
+        if (ts.kind === 'table' && rectDist(px, py, ts) < 120) { atTable = ts; break; }
       }
-      if (eatAt) {
-        S.promptStation = eatAt;
+      // he can lay a second course without getting up
+      if (atTable && W.hands.kind() === 'dish' && atTable.s.set.length < 3) {
+        S.promptStation = atTable;
+        S.prompt = { text: 'Dinner time!', locked: false };
+      } else if (atTable && atTable.s.set.length) {
+        S.promptStation = atTable;
         S.eatMode = true;
-        S.prompt = { text: 'Eat the ' + W.ITEMS[eatAt.s.set[0]].name + '!', locked: false };
+        // is anyone left to invite?
+        var free = S.stations.filter(function (c2) {
+          return c2.kind === 'chair' && c2 !== S.seated && !c2.s.taker;
+        }).length;
+        var guests = S.npcs.filter(function (a3) { return a3.friendKey || a3.isPet; }).length;
+        S.callMode = guests > 0 && free > 0 && !S.mealCalled;
+        S.prompt = {
+          text: 'Eat!', locked: false,
+          key2: S.callMode ? 'A' : null,
+          label2: S.callMode ? 'call everyone' : null
+        };
+      } else if (S.seated.kind === 'sofa') {
+        var tvOn2 = S.stations.some(function (x) { return x.kind === 'tv' && x.s.on; });
+        S.prompt = { text: tvOn2 ? 'Cosy! Enjoying the show' : 'Comfy! (arrows to get up)', locked: true };
       } else {
-        S.eatMode = false;
-        if (S.seated.kind === 'sofa') {
-          var tvOn2 = S.stations.some(function (x) { return x.kind === 'tv' && x.s.on; });
-          S.prompt = { text: tvOn2 ? 'Cosy! Enjoying the show' : 'Comfy! (arrows to get up)', locked: true };
-        } else {
-          S.prompt = { text: 'Put dinner on the table first!', locked: true };
-        }
+        S.prompt = { text: 'Bring dinner to the table!', locked: true };
       }
     } else {
-      S.eatMode = false;
-
       if (W.service.active()) {
         var cust = W.service.front();
         if (cust && Math.hypot(cust.actor.x - px, cust.actor.y - py) < 150) {
@@ -782,80 +1370,62 @@
           var sd = rectDist(px, py, S.stations[i]);
           if (sd < bsd) { bsd = sd; bestS = S.stations[i]; }
         }
-        if (bestS) {
+        // an item lying at your feet beats a station you are merely near —
+        // otherwise anything dropped beside a counter could never be retrieved
+        var pk = W.dropped.nearest(S.name, px, py, 44);
+        var pkd = pk ? Math.hypot(pk.x - px, pk.y - py) : 1e9;
+        if (pk && pkd <= bsd) {
+          S.pickupTarget = pk;
+          S.prompt = { text: 'Pick up the ' + W.ITEMS[pk.id].name, locked: false };
+        } else if (bestS) {
           S.promptStation = bestS;
           S.prompt = W.stationPrompt(bestS);
-        }
-      }
-
-      if (!S.prompt) {
-        var pk = W.dropped.nearest(S.name, px, py, 44);
-        if (pk) {
+        } else if (pk) {
           S.pickupTarget = pk;
           S.prompt = { text: 'Pick up the ' + W.ITEMS[pk.id].name, locked: false };
         }
       }
 
-      // the nearest soul is tracked ALWAYS (X-stay/X-Dee work off it even
-      // when the visible prompt is something else)
-      var best = null, bestD = 70;
-      for (var n = 0; n < S.npcs.length; n++) {
-        var np = S.npcs[n];
-        var dd = Math.hypot(np.x - S.player.x, np.y - S.player.y);
-        if (dd < bestD) { bestD = dd; best = np; }
-      }
-      S.talkTo = best;
-
-      // friends outrank the drink/drop fallback (meeting someone matters)...
-      if (!S.prompt && best && !best.isPet) {
-        var fdef = W.FRIENDS[best.friendKey];
-        var giftable = fdef && fdef.likes && W.basket.has(fdef.likes);
-        var following = best.friendKey && G.state.party.indexOf(best.friendKey) >= 0;
-        S.giftTo = giftable ? best : null;
-        S.prompt = giftable
-          ? { text: 'Give ' + best.name + ' the ' + W.ITEMS[fdef.likes].name + '!', locked: false }
-          : following
-            ? { text: 'chat', locked: false, key2: 'X', label2: 'say Dee' }
-            : { text: 'Say Trix to ' + best.name, locked: false };
-      }
-
-      if (!S.prompt && W.basket.count() > 0) {
-        var last = G.state.basket[G.state.basket.length - 1];
-        S.prompt = last === 'boba'
+      // whatever is in his paws is the fallback Z action
+      if (!S.prompt && held) {
+        S.prompt = held === 'boba'
           ? { text: 'Drink the Boba!', locked: false }
-          : { text: 'Put down the ' + W.ITEMS[last].name, locked: false };
-        S.fallback = last;
-        // the pup trots close by ALL the time — it must never mask the
-        // basket actions, so its X option rides along on the same pill
-        if (best && best.isPet) {
-          S.prompt.key2 = 'X';
-          S.prompt.label2 = G.state.petHome ? 'come along' : 'stay here';
-        }
-      } else {
-        S.fallback = null;
+          : { text: 'Put down the ' + W.ITEMS[held].name, locked: false };
       }
 
-      // ...but the pup gets the prompt to itself when your hands are empty
-      if (!S.prompt && best && best.isPet) {
-        var hasTreat = W.basket.has('treat');
+      // nothing else to do? then the social action gets the whole pill
+      if (!S.prompt && best) {
+        var sl = socialLabel();
         S.prompt = {
-          text: hasTreat ? 'Give ' + best.name + ' a treat' : 'Pet ' + best.name,
+          text: best.isPet
+            ? (W.hands.has('treat') ? 'Give ' + best.name + ' a treat' : 'Pet ' + best.name)
+            : S.giftTo === best
+              ? 'Give ' + best.name + ' the ' + W.ITEMS[held].name + '!'
+              : G.state.party.indexOf(best.friendKey) >= 0
+                ? 'Chat with ' + best.name
+                : 'Say Trix to ' + best.name,
           locked: false,
+          keyChar: 'A',
           key2: 'X',
-          label2: G.state.petHome ? 'come along' : 'stay here'
+          label2: best.isPet
+            ? (G.state.petHome ? 'come along' : 'stay here')
+            : (G.state.party.indexOf(best.friendKey) >= 0 ? 'say Dee' : null)
         };
-        S.petPrompt = true;
-      } else {
-        S.petPrompt = !!(S.fallback && best && best.isPet) ? false : false;
+      } else if (S.prompt && best) {
+        // a world action holds the pill — the social one rides along on A
+        S.prompt.key2 = 'A';
+        S.prompt.label2 = socialLabel();
       }
     }
 
-    // ------- Z: do the thing
+    // ------- Z: act on the world
     if (W.input.hit('act')) {
       if (W.dialogue.skip()) {
         // consumed finishing the typewriter
       } else if (S.eatMode && S.promptStation) {
-        W.stationEat(S.promptStation, S.player);
+        S.startMeal(S.promptStation);
+      } else if (S.seated && S.promptStation) {
+        W.stationAct(S.promptStation, S.player);
       } else if (S.serveTo) {
         W.service.serve();
       } else if (S.promptStation && !S.seated) {
@@ -867,36 +1437,10 @@
           W.say('Got the ' + W.ITEMS[S.pickupTarget.id].name + ' back.');
           if (W.audio) W.audio.play('pickup');
         } else {
-          W.say('The basket is full!');
+          W.say('The tray is full!');
         }
-      } else if (S.fallback && (!S.talkTo || S.talkTo.isPet)) {
-        if (S.fallback === 'boba') drinkBoba();
-        else if (S.player.jumpT > 0) {
-          // dropping mid-jump could maroon an item on a door mat
-        } else {
-          var did2 = W.dropped.drop(S.name, S.player.x, S.player.y);
-          if (did2) W.say('There. Safe on the floor.');
-        }
-      } else if (S.talkTo) {
-        if (S.talkTo.isPet) {
-          if (W.basket.has('treat')) {
-            W.basket.remove('treat');
-            G.state.petFedDay = G.state.day;
-            S.talkTo.says('*chomp chomp* squee!', 2.4);
-            W.fx.hearts(S.talkTo.x, S.talkTo.y - 60, 6);
-            if (W.audio) W.audio.play('chomp');
-          } else {
-            S.talkTo.says(['squee!', '*happy wiggle*', '*purrs fuzzily*'][Math.floor(Math.random() * 3)], 2.2);
-            W.fx.hearts(S.talkTo.x, S.talkTo.y - 60, 2);
-            if (W.audio) W.audio.play('blip');
-          }
-        } else if (S.giftTo === S.talkTo && W.giveGift(S.talkTo)) {
-          S.giftTo = null;
-        } else if (W.talkTo(S.talkTo)) {
-          W.renumberParty(S.npcs);
-        }
-      } else if (S.fallback) {
-        if (S.fallback === 'boba') drinkBoba();
+      } else if (held && !S.seated) {
+        if (held === 'boba') drinkBoba();
         else if (S.player.jumpT > 0) {
           // dropping mid-jump could maroon an item on a door mat
         } else {
@@ -906,9 +1450,40 @@
       }
     }
 
+    // ------- A: talk to whoever is nearby
+    if (W.input.hit('talk')) {
+      if (S.callMode && S.promptStation) {
+        S.callToDinner(S.promptStation);
+      } else if (S.talkTo) {
+        var who = S.talkTo;
+        if (who.isPet) {
+          if (W.hands.has('treat')) {
+            W.hands.drop();
+            G.state.petFedDay = G.state.day;
+            who.says('*chomp chomp* squee!', 2.4);
+            W.fx.hearts(who.x, who.y - 60, 6);
+            if (W.audio) W.audio.play('chomp');
+          } else {
+            who.says(['squee!', '*happy wiggle*', '*purrs fuzzily*'][Math.floor(Math.random() * 3)], 2.2);
+            W.fx.hearts(who.x, who.y - 60, 2);
+            if (W.audio) W.audio.play('blip');
+          }
+        } else if (S.giftTo === who && W.giveGift(who)) {
+          S.giftTo = null;
+        } else if (W.talkTo(who)) {
+          W.renumberParty(S.npcs);
+        }
+      }
+    }
+
     // ------- X: stop the thing (dismiss a follower, clock off a job)
     if (W.input.hit('back')) {
-      if (S.talkTo && S.talkTo.isPet) {
+      // a station can claim X for a second action of its own (the campfire
+      // uses it to settle everyone down for the night)
+      if (S.promptStation && S.promptStation.def.onBack &&
+          S.promptStation.def.onBack(S.promptStation)) {
+        // handled
+      } else if (S.talkTo && S.talkTo.isPet) {
         // the pup can wait at home instead of tagging along
         if (G.state.petHome) {
           G.state.petHome = null;
@@ -939,7 +1514,9 @@
 
   S.draw = function (ctx) {
     var G = W.game;
-    var dark = S.room.wallH && !lightsOn(S.name);
+    // Indoors the light switch decides. Outdoors, only the campfire can
+    // bring the night in — that is what "sleep under the stars" needs.
+    var dark = (S.room.wallH || S.room.canNight) && !lightsOn(S.name);
     var sleepDark = 0;
     if (S.sleeping) {
       var sl = S.sleeping;
@@ -950,6 +1527,15 @@
     ctx.drawImage(dark ? nightBg(S.name) : S.bg, 0, 0);
 
     var list = S.sprites.slice();
+    if (S.driving && S.driving.sprite) {
+      // the machine sorts by where it IS, not where it is parked
+      var mi2 = list.indexOf(S.driving.sprite);
+      if (mi2 >= 0) {
+        var mv = list[mi2];
+        list[mi2] = { img: mv.img, ox: mv.ox, oy: mv.oy, kind: mv.kind,
+                      baseY: mv.baseY + S.driving.dy, moving: mv };
+      }
+    }
     list.push({ actor: S.player, baseY: S.player.y });
     for (var n = 0; n < S.npcs.length; n++) {
       list.push({ actor: S.npcs[n], baseY: S.npcs[n].y });
@@ -961,11 +1547,16 @@
     for (var i = 0; i < list.length; i++) {
       var it = list[i];
       if (it.actor === S.player) {
-        if (S.sleeping) {
+        if (S.driving) {
+          // he is up in the cab, drawn with the machine
+        } else if (S.riding) {
+          // drawn on the swing further down, not standing on the grass
+        } else if (S.sleeping) {
           // drawn last, after this loop — he lies ON the bed, over the blanket
         } else if (S.seated) {
           W.drawChar(ctx, S.player.x, S.player.y, {
-            char: 'bobby', suit: G.state.suit, dir: 'down', t: G.t, scale: 0.9 * psc
+            char: 'bobby', suit: G.state.suit, dir: 'down', t: G.t, scale: 0.9 * psc,
+            held: G.state.held
           });
         } else if (cartMode) {
           W.drawCart(ctx, S.player.x, S.player.y - 26, 1, G.t);
@@ -975,9 +1566,35 @@
           S.player.scale = 1;
         }
       } else if (it.actor) {
-        it.actor.draw(ctx, G.t);
+        if (!it.actor.hidden) it.actor.draw(ctx, G.t);
+      } else if (S.driving && (it === S.driving.sprite || it.moving === S.driving.sprite)) {
+        // the machine is out working, so it isn't parked any more
+        ctx.drawImage(it.img, it.ox + S.driving.dx, it.oy + S.driving.dy);
+        W.drawChar(ctx, S.driving.home[0] + S.driving.dx,
+                        S.driving.home[1] + S.driving.dy - 34, {
+          char: 'bobby', suit: G.state.suit, dir: 'down', t: G.t,
+          scale: 0.44, noShadow: true
+        });
       } else {
         ctx.drawImage(it.img, it.ox, it.oy);
+      }
+    }
+
+    // riders paint over the ride they are sitting on
+    if (S.riding) {
+      var rp = S.ridePos(0);
+      W.drawChar(ctx, rp.x, rp.y, {
+        char: 'bobby', suit: G.state.suit, dir: 'down', t: G.t,
+        scale: rp.scale || 0.82, spin: rp.spin, noShadow: true, held: G.state.held,
+        neck: W.neckStretch ? W.neckStretch() : 0
+      });
+      if (S.riding.partner) {
+        var pp0 = S.ridePos(1);
+        var pf = W.FRIENDS[S.riding.partner.friendKey];
+        W.drawChar(ctx, pp0.x, pp0.y, {
+          char: pf ? pf.char : 'npc', dir: 'down', t: G.t,
+          scale: 0.82, spin: -rp.spin, noShadow: true
+        });
       }
     }
 
@@ -989,6 +1606,7 @@
       });
     }
 
+    drawMachineWork(ctx);
     W.dropped.draw(ctx, S.name, G.t);
 
     for (var s2 = 0; s2 < S.stations.length; s2++) {
@@ -1009,6 +1627,32 @@
         ctx.restore();
       }
     }
+    /* Camp night: the sky bake alone leaves the rocks and the balloon
+     * looking like broad daylight, so a gentle veil goes over everything —
+     * with a warm hole punched around the fire. Indoor rooms keep their
+     * existing look; this is only for rooms that can turn to night. */
+    if (dark && !S.room.wallH && !S.sleeping) {
+      ctx.save();
+      ctx.globalAlpha = 0.34;
+      ctx.fillStyle = '#241640';
+      ctx.fillRect(0, 0, 960, 600);
+      ctx.restore();
+      for (var fs = 0; fs < S.stations.length; fs++) {
+        var fst = S.stations[fs];
+        if (fst.kind !== 'firepit' || !fst.s.lit) continue;
+        var fx0 = fst.x + fst.w / 2, fy0 = fst.y + 10;
+        var rr = 150 + Math.sin(G.t * 5) * 8;
+        var gr2 = ctx.createRadialGradient(fx0, fy0, 10, fx0, fy0, rr);
+        gr2.addColorStop(0, 'rgba(255,206,120,0.45)');
+        gr2.addColorStop(0.6, 'rgba(255,170,90,0.16)');
+        gr2.addColorStop(1, 'rgba(255,170,90,0)');
+        ctx.save();
+        ctx.fillStyle = gr2;
+        ctx.fillRect(fx0 - rr, fy0 - rr, rr * 2, rr * 2);
+        ctx.restore();
+      }
+    }
+
     // weather is decoration only — particles and the rainbow, never a
     // colour wash (tinting made everything read as gloom)
     if (S.room.outdoor) {
@@ -1046,7 +1690,7 @@
     if (sleepDark > 0) {
       ctx.save();
       ctx.globalAlpha = sleepDark * 0.86;
-      ctx.drawImage(S.room.wallH ? nightBg(S.name) : S.bg, 0, 0);
+      ctx.drawImage(nightBg(S.name), 0, 0);
       ctx.globalAlpha = sleepDark * 0.4;
       ctx.fillStyle = '#241640';
       ctx.fillRect(0, 0, 960, 600);
@@ -1056,7 +1700,7 @@
     for (var b = 0; b < S.npcs.length; b++) S.npcs[b].drawBubble(ctx);
 
     if (S.prompt && !S.sleeping) {
-      var kc = 'Z';
+      var kc = S.prompt.keyChar || 'Z';
       if (S.promptStation && S.promptStation.def.stopWith === 'back' && W.service.active()) kc = 'X';
       W.drawPrompt(ctx, S.player.x, S.player.y + 24, S.prompt.text, G.t, S.prompt.locked, kc,
         S.prompt.key2, S.prompt.label2);
@@ -1073,10 +1717,10 @@
       });
       // two hint lines take turns so X/P/M get taught too
       var alt = Math.floor(G.t / 7) % 2 === 1;
-      var hint = alt ? 'X stop/say Dee · P pause · M sound · K love'
+      var hint = alt ? 'X stop · A talk · K love · P pause · M sound'
                      : 'arrows move · shift run · space jump · Z do';
       if (W.can('transform') && !alt) hint = 'T transform · ' + hint;
-      C.textCached(ctx, hint, 938, 582, {
+      C.textCached(ctx, hint, 946, 582, {
         size: 13, align: 'right', color: PAL.white,
         outline: 3, outlineColor: PAL.outline,
         seed: 'hint' + (alt ? 'b' : 'a') + (W.can('transform') ? 'T' : '')

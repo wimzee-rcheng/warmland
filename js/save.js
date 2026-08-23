@@ -24,12 +24,12 @@
   }
 
   // Only the fields worth persisting; the rest is rebuilt on load.
-  var FIELDS = ['suit', 'room', 'visited', 'basket', 'stations', 'lights', 'party',
+  var FIELDS = ['suit', 'room', 'visited', 'tray', 'held', 'stations', 'lights', 'party',
                 'metFriends', 'money', 'day', 'clock', 'crystals', 'meals',
                 'platesAway', 'builtTreehouse', 'missions', 'treasures', 'mechForm',
                 'plates', 'dropped', 'friendRooms', 'crystalsCarried',
                 'ideas', 'firsts', 'mail', 'ideaStickers', 'crystalsFound',
-                'weather', 'weatherDay', 'pet', 'petHome', 'petFedDay', 'friendship', 'decor', 'saveSalt'];
+                'weather', 'weatherDay', 'canWater', 'builds', 'shells', 'shellsFound', 'snowBest', 'pet', 'petHome', 'petFedDay', 'friendship', 'decor', 'saveSalt'];
 
   function pack() {
     var st = W.game.state, out = {};
@@ -42,6 +42,29 @@
     FIELDS.forEach(function (k) {
       if (data[k] !== undefined) st[k] = data[k];
     });
+
+    // Saves written before the tray/hands split carried one flat basket.
+    if (data.basket && !data.tray) {
+      st.tray = [];
+      st.held = null;
+      var spill = [];
+      data.basket.forEach(function (id) {
+        if (!W.ITEMS[id]) return;
+        if (W.isRaw(id)) {
+          if (st.tray.length < W.TRAY_MAX) st.tray.push(id); else spill.push(id);
+        } else if (!st.held) {
+          st.held = id;
+        } else spill.push(id);
+      });
+      if (spill.length) {
+        if (!st.dropped[st.room]) st.dropped[st.room] = [];
+        spill.forEach(function (id, i) {
+          st.dropped[st.room].push({ id: id, x: 460 + i * 26, y: 400 });
+        });
+      }
+    }
+    if (!st.tray) st.tray = [];
+    if (st.held === undefined) st.held = null;
     // Unknown friend keys (renames, bad hashes) must not brick room entry.
     if (st.party && W.FRIENDS) {
       st.party = st.party.filter(function (k) { return !!W.FRIENDS[k]; });
@@ -102,6 +125,9 @@
     },
 
     has: function () { return !!W.save.read(); },
+
+    // exposed for the test harness (and any future import path)
+    apply: apply,
 
     load: function () {
       var d = W.save.read();

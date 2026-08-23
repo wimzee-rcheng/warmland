@@ -12,13 +12,49 @@
   var S = { mission: 'megatron', f: null, t: 0, boss: null, wave: 0, spawnIn: 0, papers: {}, lock: 0,
             armedNext: false };
 
+  /* The invasion arrives in three waves of ten: wave two brings shields,
+   * wave three brings speed. */
+  var WAVE_SIZE = 10;
+  var WAVES = 3;
+
   function spawnAlien() {
     var side = Math.random() < 0.5 ? -50 : 1010;
+    var boost = S.waveNum >= 3 ? 1.5 : 1;
     S.f.enemies.push({
       x: side, y: 90 + Math.random() * 220, r: 40, hp: 2, hurt: 0,
-      vx: (side < 0 ? 1 : -1) * (60 + Math.random() * 70),
-      vy: (Math.random() - 0.5) * 40, fireIn: 1 + Math.random() * 2, alien: true
+      shield: S.waveNum >= 2 ? 1 : 0,
+      vx: (side < 0 ? 1 : -1) * (60 + Math.random() * 70) * boost,
+      vy: (Math.random() - 0.5) * 40 * boost,
+      fireIn: 1 + Math.random() * 2, alien: true
     });
+  }
+
+  /* One of three, picked without repeating, so the second one always feels
+   * like a new toy. */
+  var POWERS = {
+    dual:   { name: 'DUAL BLASTERS', sub: 'Two straws are better than one!' },
+    seeker: { name: 'HEAT-SEEKING STRAWS', sub: 'They find the saucers for you!' },
+    bombs:  { name: 'BOBA BOMBS', sub: 'Every fourth shot goes BOOM!' }
+  };
+
+  /* Power-ups STACK. Wave three should feel like a reward for wave two, not
+   * a swap that takes your favourite toy away. */
+  function grantPower(f, seed) {
+    var have = f.hero.powers || (f.hero.powers = []);
+    var keys = Object.keys(POWERS).filter(function (k) { return have.indexOf(k) < 0; });
+    if (!keys.length) {
+      // already got the lot: top up the shield instead
+      f.hero.shieldHits = (f.hero.shieldHits || 0) + 1;
+      W.game.showBanner('EXTRA SHIELD!', 'Nothing can touch you!');
+      return null;
+    }
+    var pick = keys[Math.floor(W.mulberry32(W.hash('pw' + seed))() * keys.length)];
+    have.push(pick);
+    f.hero.power = pick;                  // the newest one names the HUD
+    W.game.showBanner(POWERS[pick].name, POWERS[pick].sub);
+    W.fx.sparkle(f.hero.x, f.hero.y - 20, 26, 180);
+    if (W.audio) W.audio.play('chime');
+    return pick;
   }
 
   function makeBoss() {
@@ -58,9 +94,13 @@
       S.f.hero.hp = S.f.hero.maxHp = 6;
       S.f.hero.hitDy = -8;               // the saucer body IS the hitbox
       S.f.hero.hitR = 45;
+      S.waveNum = 1;
+      S.spawned = 0;
+      S.breather = 0;
       spawnAlien(); spawnAlien();
+      S.spawned = 2;
       S.wave = 2;
-      W.say('Alien saucers! Z to shoot. X flies home.', PAL.sky);
+      W.say('Wave 1 of 3! Z to shoot. X flies home.', PAL.sky);
     }
     // One fully-drawn backdrop per mission, baked once. The scenery used to
     // be crayoned live every frame (~6-12ms); now it's a single blit.
@@ -103,7 +143,7 @@
     if (!f.over) {
       // move Bobby
       var a = W.input.axis();
-      var sp = 250 * dt;
+      var sp = (hero.speed || 250) * dt;
       hero.x = W.clamp(hero.x + a[0] * sp, 60, 900);
       hero.y = W.clamp(hero.y + a[1] * sp, S.mission === 'space' ? 200 : 330, 545);
 
@@ -195,14 +235,44 @@
       }
 
       if (S.mission === 'space') {
-        S.spawnIn -= dt;
-        if (S.spawnIn <= 0 && S.wave < 10 && f.enemies.length < 3) {
-          S.spawnIn = 1.5;
-          S.wave++;
-          spawnAlien();
+        if (S.breather > 0) {
+          // between waves: catch your breath, patch the hull
+          S.breather -= dt;
+          if (S.breather <= 0) {
+            S.waveNum++;
+            S.spawned = 0;
+            S.spawnIn = 0.6;
+            W.game.showBanner('WAVE ' + S.waveNum + ' OF ' + WAVES,
+              S.waveNum === 2 ? 'These ones have shields!' : 'And these ones are FAST!');
+            if (W.audio) W.audio.play('horn');
+          }
+        } else {
+          S.spawnIn -= dt;
+          if (S.spawnIn <= 0 && S.spawned < WAVE_SIZE && f.enemies.length < 3) {
+            S.spawnIn = 1.5;
+            S.spawned++;
+            S.wave++;
+            spawnAlien();
+          }
+          // a wave is beaten when all ten have been spawned AND cleared
+          if (S.spawned >= WAVE_SIZE && !f.enemies.length && !f.over) {
+            if (S.waveNum < WAVES) {
+              W.game.showBanner('WAVE ' + S.waveNum + ' CLEAR!', 'Patching up the saucer...');
+              f.hero.hp = f.hero.maxHp;             // a full hull between waves
+              W.fx.hearts(f.hero.x, f.hero.y - 30, 6);
+              grantPower(f, G.state.day + ':' + S.waveNum);
+              if (S.waveNum === 2) {
+                f.hero.shieldHits = 1;
+                f.hero.speed = 310;
+                W.say('A shield AND a speed boost! Go go go!', PAL.sky);
+              }
+              S.breather = 2.4;
+            } else {
+              f.over = 'win';
+              f.overT = 0;
+            }
+          }
         }
-        // the mission ends only once the last wave has been cleared
-        if (S.wave >= 10 && !f.enemies.length && !f.over) { f.over = 'win'; f.overT = 0; }
       }
     }
 
@@ -216,7 +286,18 @@
       if (W.audio) W.audio.play('ding');
     }
     if (S.armedNext && W.input.hit('special')) {
+      // the arsenal from the invasion comes WITH you — three waves earned it
+      var keep = {
+        powers: f.hero.powers.slice(),
+        power: f.hero.power,
+        shieldHits: f.hero.shieldHits,
+        speed: f.hero.speed
+      };
       S.enter({ mission: 'mothership' });
+      S.f.hero.powers = keep.powers;
+      S.f.hero.power = keep.power;
+      S.f.hero.shieldHits = keep.shieldHits;
+      S.f.hero.speed = keep.speed;
       return;
     }
 
@@ -258,6 +339,29 @@
     if (!f.over) S.announced = false;
   };
 
+  /* A soft ring: a shield that has not been popped yet. */
+  var bubbleTiles = {};
+  function bubble(ctx, x, y, r, col) {
+    var key = col + '|' + Math.round(r);
+    if (!bubbleTiles[key]) {
+      var m = Math.ceil(r + 8);
+      var cv = C.offscreen(m * 2, m * 2);
+      var g = cv.getContext('2d');
+      C.arc(g, m, m, r, 0, Math.PI * 2, {
+        seed: 'bub' + key, stroke: col, lw: 4.4, wob: 1.6, passes: 2, strokeAlpha: 0.95
+      });
+      C.arc(g, m, m, r - 5, Math.PI * 1.1, Math.PI * 1.6, {
+        seed: 'bub2' + key, stroke: PAL.white, lw: 2.4, wob: 1.2, passes: 1, strokeAlpha: 0.55
+      });
+      bubbleTiles[key] = cv;
+    }
+    var img = bubbleTiles[key];
+    ctx.save();
+    ctx.globalAlpha = 0.55 + 0.25 * Math.sin(S.t * 4);
+    ctx.drawImage(img, x - img.width / 2, y - img.height / 2);
+    ctx.restore();
+  }
+
   S.draw = function (ctx) {
     var G = W.game, f = S.f;
     ctx.save();
@@ -278,6 +382,7 @@
       if (en.mother) W.drawMothership(ctx, en.x, en.y, 1, S.t, en.hurt);
       else if (en.alien) W.drawAlien(ctx, en.x, en.y, 1, S.t, en.hurt);
       else W.drawMegatron(ctx, en.x, en.y, 1, S.t, en.hurt);
+      if (en.shield > 0) bubble(ctx, en.x, en.y, en.r + 16, '#8FD0EE');
     }
 
     f.drawShots(ctx);
@@ -299,6 +404,7 @@
         });
         ctx.restore();
         W.drawUFOGlass(ctx, 0, 0, 1);
+        if (f.hero.shieldHits > 0) bubble(ctx, 0, 0, 62, '#F2C14E');
         // party peeking out
         G.state.party.forEach(function (key, i) {
           var fr = W.FRIENDS[key];
@@ -324,7 +430,18 @@
       var mb = S.f.enemies.filter(function (e2) { return e2.mother; })[0];
       W.drawHealthBar(ctx, 660, 20, 280, mb ? mb.hp / mb.maxHp : 0, '#E0455F', 'MOTHERSHIP');
     } else if (S.mission === 'space') {
-      W.drawHealthBar(ctx, 700, 20, 240, S.wave / 10, '#9A5FD6', 'Waves ' + S.wave + '/10');
+      W.drawHealthBar(ctx, 700, 20, 240, S.spawned / 10, '#9A5FD6',
+        'Wave ' + S.waveNum + '/' + WAVES);
+    }
+    // the power-up list rides along into the mothership fight too
+    if (S.mission === 'space' || S.mission === 'mothership') {
+      var got = f.hero.powers || [];
+      for (var pi = 0; pi < got.length; pi++) {
+        C.textCached(ctx, POWERS[got[pi]].name, 20, 62 + pi * 22, {
+          size: 15, color: PAL.sun, outline: 3, outlineColor: PAL.outline,
+          seed: 'pwl' + got[pi]
+        });
+      }
     }
 
     if (S.armedNext) {

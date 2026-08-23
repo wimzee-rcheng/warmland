@@ -50,12 +50,14 @@
       name: 'Fluff', body: 'pup',
       fur: '#F2D5A0', ear: '#E8A05C', nose: '#8A5A2B'
     },
-    // The park crowd. Same cup silhouette, tinted per instance.
+    /* Everyone else in Warmland. Bobby and his friends are boba cups
+     * BECAUSE they are special — the townsfolk are plain scribble people,
+     * which makes the cast read at a glance. Shirt colour comes from the
+     * instance tint; skin and hair are derived from it, so one tint is
+     * always the same person. */
     npc: {
-      name: 'Someone', body: 'cup', head: 'bear',
-      fur: '#A97B4F', ear: '#A97B4F', earInner: PAL.accent,
-      muzzle: '#E9D6AE', nose: '#8A5A2B',
-      straw: '#F2C14E', cupTop: '#E9D6AE', cupBot: '#D9A863', pearl: '#8A5A2B'
+      name: 'Someone', body: 'person',
+      shirt: '#D9847A', skin: '#F0C39A', hair: '#5A3A24'
     }
   };
 
@@ -66,7 +68,8 @@
     mech:      { w: 160, h: 210, ax: 80, ay: 190 },
     butterfly: { w: 164, h: 140, ax: 82, ay: 116 },
     pom:       { w: 80,  h: 84,  ax: 40, ay: 70 },
-    pup:       { w: 96,  h: 84,  ax: 48, ay: 72 }
+    pup:       { w: 96,  h: 84,  ax: 48, ay: 72 },
+    person:    { w: 110, h: 168, ax: 55, ay: 146 }
   };
 
   // ------------------------------------------------------------- colouring
@@ -84,7 +87,16 @@
     if (!tint) return spec;
     var out = {};
     for (var k in spec) out[k] = spec[k];
-    if (spec.body === 'pom') {
+    if (spec.body === 'person') {
+      // one tint, one consistent townsperson
+      var r = W.mulberry32(W.hash('person' + tint));
+      out.shirt = tint;
+      out.trouser = shade(tint, -60);
+      out.skin = SKINS[Math.floor(r() * SKINS.length)];
+      out.hair = HAIRS[Math.floor(r() * HAIRS.length)];
+      out.hairDo = Math.floor(r() * 3);
+      out.shoe = shade(tint, -90);
+    } else if (spec.body === 'pom') {
       out.fur = tint;
     } else {
       out.fur = tint;
@@ -95,6 +107,97 @@
       out.muzzle = shade(tint, 60);
     }
     return out;
+  }
+
+  // Four crayon skin tones and five hair colours: enough that a park full
+  // of people never reads as clones.
+  var SKINS = ['#F6D3B0', '#E8B98C', '#C88A5C', '#8E5A38'];
+  var HAIRS = ['#3A2A1E', '#6B4327', '#B9822F', '#D9CBA0', '#8A3E3E'];
+
+  // ------------------------------------------------------------- scribble people
+
+  /* A plain person: circle head, stick limbs, one block of a shirt.
+   * Deliberately simpler than the cup cast — they are the background. */
+  function drawPerson(ctx, spec, dir, seed, t, swing) {
+    var skin = spec.skin || '#F0C39A';
+    var shirt = spec.shirt || spec.fur || '#D9847A';
+    var trouser = spec.trouser || shade(shirt, -60);
+    var hair = spec.hair || '#5A3A24';
+    var headY = -96, hr = 17;
+
+    // legs
+    for (var s2 = -1; s2 <= 1; s2 += 2) {
+      var lx = s2 * 8, len = -6 + swing * s2 * 3;
+      C.line(ctx, lx, -38, lx + s2 * 2, len, {
+        seed: seed + 'pl' + s2, stroke: PAL.outline, lw: 8, wob: 0.9
+      });
+      C.line(ctx, lx, -38, lx + s2 * 2, len, {
+        seed: seed + 'pl' + s2, stroke: trouser, lw: 5, wob: 0.9, passes: 1
+      });
+      C.ellipse(ctx, lx + s2 * 4, len + 1, 7, 4.4, {
+        seed: seed + 'ps' + s2, fill: spec.shoe || PAL.outline, stroke: PAL.outline,
+        lw: 2, hatch: 2.6, wash: 0.9, wob: 0.7
+      });
+    }
+
+    // shirt
+    C.roundRect(ctx, -18, -78, 36, 42, 9, {
+      seed: seed + 'shirt', fill: shirt, stroke: PAL.outline,
+      lw: 2.6, hatch: 3.4, wash: 0.74, wob: 1
+    });
+
+    // arms — they swing opposite the legs, like a person walking
+    for (var a2 = -1; a2 <= 1; a2 += 2) {
+      var sx = a2 * 17, hx = a2 * 23, hy = -48 - swing * a2 * 4;
+      C.line(ctx, sx, -72, hx, hy, {
+        seed: seed + 'pa' + a2, stroke: PAL.outline, lw: 7, wob: 0.9
+      });
+      C.line(ctx, sx, -72, hx, hy, {
+        seed: seed + 'pa' + a2, stroke: shirt, lw: 4, wob: 0.9, passes: 1
+      });
+      C.dot(ctx, hx, hy + 3, 4.4, skin, seed + 'ph' + a2);
+    }
+
+    // head
+    C.ellipse(ctx, 0, headY, hr, hr + 1, {
+      seed: seed + 'phead', fill: skin, stroke: PAL.outline,
+      lw: 2.8, hatch: 3, wash: 0.78, wob: 1
+    });
+
+    // hair: curls, a bob, or spikes
+    var doo = spec.hairDo || 0;
+    if (doo === 0) {
+      for (var c2 = 0; c2 < 5; c2++) {
+        var ca = Math.PI * (1.06 + c2 * 0.22);
+        C.dot(ctx, Math.cos(ca) * (hr - 1), headY + Math.sin(ca) * (hr - 1),
+              6, hair, seed + 'hc' + c2);
+      }
+    } else if (doo === 1) {
+      C.arc(ctx, 0, headY, hr + 2, Math.PI * 0.98, Math.PI * 2.02, {
+        seed: seed + 'hb', stroke: hair, lw: 9, wob: 1
+      });
+      C.line(ctx, -hr - 1, headY - 2, -hr - 1, headY + 11,
+             { seed: seed + 'hbl', stroke: hair, lw: 7, wob: 1 });
+      C.line(ctx, hr + 1, headY - 2, hr + 1, headY + 11,
+             { seed: seed + 'hbr', stroke: hair, lw: 7, wob: 1 });
+    } else {
+      for (var k2 = -2; k2 <= 2; k2++) {
+        C.line(ctx, k2 * 6, headY - hr + 2, k2 * 7.5, headY - hr - 8, {
+          seed: seed + 'hs' + k2, stroke: hair, lw: 5, wob: 1.1
+        });
+      }
+      C.arc(ctx, 0, headY, hr, Math.PI * 1.05, Math.PI * 1.95,
+            { seed: seed + 'hsc', stroke: hair, lw: 7, wob: 1 });
+    }
+
+    if (dir === 'up') return;      // facing away: no face
+
+    var fx = dir === 'left' ? -4 : dir === 'right' ? 4 : 0;
+    C.dot(ctx, fx - 6, headY - 1, 2.5, PAL.outline, seed + 'pe1');
+    C.dot(ctx, fx + 6, headY - 1, 2.5, PAL.outline, seed + 'pe2');
+    C.arc(ctx, fx, headY + 4, 6, Math.PI * 0.14, Math.PI * 0.86, {
+      seed: seed + 'pm', stroke: PAL.outline, lw: 2.2, wob: 0.7
+    });
   }
 
   // ------------------------------------------------------------- cup body
@@ -622,6 +725,8 @@
       drawButterfly(ctx, spec, dir, seed, t, (frame % 4) / 3);
     } else if (body === 'pup') {
       drawPup(ctx, spec, dir, seed, t, frame);
+    } else if (body === 'person') {
+      drawPerson(ctx, spec, dir, seed, t, swing);
     } else if (body === 'pom') {
       drawPom(ctx, spec, dir, seed, t);
     } else if (body === 'mech') {
@@ -722,8 +827,58 @@
     ctx.translate(x, y - lift * sc);
     if (opts.spin) ctx.rotate(opts.spin);
     ctx.scale(sc / squash, sc * squash);
-    ctx.drawImage(got.img, -got.tile.ax, -got.tile.ay);
+    var suitDef = W.SUITS[suitKey] || W.SUITS.none;
+    if (opts.neck && !suitDef.overrideBody) {
+      /* Long-Neck Bobby: the martian ice cream stretches him. The tile is
+       * drawn twice — body low, head high — with a stretched slice of the
+       * body colour joining them, so no new pose has to be baked. */
+      var n = opts.neck;
+      var headCut = got.tile.ay - 70;          // the cut sits just under the chin
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(-got.tile.ax, -got.tile.ay + headCut, got.tile.w, got.tile.h);
+      ctx.clip();
+      ctx.drawImage(got.img, -got.tile.ax, -got.tile.ay);   // body
+      ctx.restore();
+      ctx.save();
+      // cover the stump the head left behind, then run the neck up to it
+      var baseY = -got.tile.ay + headCut;
+      ctx.fillStyle = spec.muzzle || '#E9D6AE';
+      ctx.beginPath();
+      ctx.ellipse(0, baseY + 2, 20, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(-9, baseY - n, 18, n + 6);
+      ctx.strokeStyle = W.PAL.outline;
+      ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(-9, baseY + 6);
+      ctx.lineTo(-9, baseY - n);
+      ctx.moveTo(9, baseY + 6);
+      ctx.lineTo(9, baseY - n);
+      ctx.stroke();
+      ctx.restore();
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(-got.tile.ax, -got.tile.ay - n, got.tile.w, headCut);
+      ctx.clip();
+      ctx.drawImage(got.img, -got.tile.ax, -got.tile.ay - n);   // head, lifted
+      ctx.restore();
+    } else {
+      ctx.drawImage(got.img, -got.tile.ax, -got.tile.ay);
+    }
     ctx.restore();
+
+    /* Whatever is in his paws rides overhead so you never lose track of it.
+     * Pure blit of a cached icon — safe to run every frame. */
+    if (opts.held && W.itemIcon) {
+      var ic = W.itemIcon(opts.held, 13);
+      // just above the head, not the top of the (roomy) tile
+      var hy = y - lift * sc - (got.tile.ay * 0.78 + 4) * sc + Math.sin(t * 3.4) * 2;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(ic, Math.round(x - ic.width / 2), Math.round(hy - ic.height));
+      ctx.restore();
+    }
   };
 
   // Kept so anything written against the demo still works.

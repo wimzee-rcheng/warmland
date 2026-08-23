@@ -19,7 +19,13 @@
       suit: 'none',
       room: 'living',
       visited: {},
-      basket: [],
+      tray: [],
+      canWater: 0,
+      builds: {},
+      shells: 0,
+      snowBest: 0,
+      shellsFound: {},              // raw ingredients only (max 4)
+      held: null,            // the one thing in Bobby's paws
       stations: {},          // room:kind:index -> persistent bits
       lights: {},            // room -> bool (undefined means on)
       party: [],             // friends currently following
@@ -351,6 +357,9 @@
     G.register('vehicle', W.sceneVehicle);
     G.register('mission', W.sceneMission);
     G.register('dive',    W.sceneDive);
+    G.register('race',    W.sceneRace);
+    G.register('mars',    W.sceneMars);
+    G.register('snow',    W.sceneSnow);
   }
 
   function boot() {
@@ -374,12 +383,29 @@
       if (h.crystals) { G.state.crystals = +h.crystals; G.state.crystalsFound = { sunstone: 2, heartgem: 2 }; }
       if (h.dark) G.state.lights[h.room || 'living'] = false;
       if (h.party) G.state.party = h.party.split(',');
-      if (h.basket) G.state.basket = h.basket.split(',');
+      if (h.builds) {
+        // #builds=all, or a comma list: &builds=swing,camp
+        var want = h.builds === 'all'
+          ? ['swing', 'seesaw', 'critterBox', 'camp'] : h.builds.split(',');
+        want.forEach(function (b) { G.state.builds[b] = true; });
+        if (h.builds === 'all') G.state.builds.friendHouse = 4;
+        if (h.house) G.state.builds.friendHouse = +h.house;
+      }
+      if (h.shells) { G.state.shells = +h.shells; G.state.shellsFound = { scallop: 2, conch: 1 }; }
+      if (h.tray) G.state.tray = h.tray.split(',').filter(W.isRaw);
+      if (h.held) G.state.held = h.held;
 
       // dev shortcuts do NOT autosave over a real game unless asked
       if (h.save) G.saveOk = true;
 
-      if (h.scene === 'vehicle') {
+      if (h.scene === 'snow') {
+        G.go('snow');
+      } else if (h.scene === 'mars') {
+        G.go('mars');
+      } else if (h.scene === 'race') {
+        G.state.suit = 'racer';
+        G.go('race');
+      } else if (h.scene === 'vehicle') {
         G.go('vehicle', { vehicle: h.vehicle || 'ufo' });
       } else if (h.scene === 'mission') {
         G.go('mission', { mission: h.mission || 'megatron' });

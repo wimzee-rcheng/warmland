@@ -81,6 +81,15 @@
               setTimeout(function () { tone(f, 0.22, 'triangle', 0.2); }, i * 80); }); },
     pour:   function () { noise(0.5, 0.14, 700); },
     water:  function () { noise(0.9, 0.12, 1600); },
+    thud:   function () { tone(90, 0.12, 'sine', 0.24, 55); noise(0.14, 0.1, 300); },
+    rattle: function () { noise(0.09, 0.06, 220); },
+    engine: function (frac, pedal) {
+      // a low buzzing note that climbs with speed; louder while accelerating
+      var f = 55 + W.clamp(frac, 0, 1) * 150;
+      tone(f, 0.16, 'sawtooth', pedal ? 0.10 : 0.05, f * 1.12);
+      tone(f * 2, 0.12, 'square', pedal ? 0.035 : 0.02);
+    },
+    horn:   function () { tone(330, 0.3, 'square', 0.16); tone(392, 0.3, 'square', 0.12); },
     cook:   function () { tone(300, 0.3, 'sine', 0.14, 420); },
     eat:    function () { tone(360, 0.1, 'triangle', 0.2); 
                           setTimeout(function () { tone(300, 0.1, 'triangle', 0.18); }, 110); },
@@ -112,7 +121,9 @@
               setTimeout(function () { tone(b + 200, 0.12, 'sine', 0.1, b - 200); }, 120); },
     lullaby:function () { [523, 494, 392].forEach(function (f, i) {
               setTimeout(function () { tone(f, 0.7, 'sine', 0.16); }, i * 500); }); },
-    murmur: function () { noise(0.4, 0.05, 600); }
+    murmur: function () { noise(0.4, 0.05, 600); },
+    aaah:   function () { [523, 466, 392].forEach(function (f, i) {
+              setTimeout(function () { tone(f, 0.45, 'sine', 0.14); }, i * 130); }); }
   };
 
   // ------------------------------------------------------------- the theme
@@ -142,6 +153,12 @@
       if (!started || muted || !ctx) return;
       var f = SOUNDS[name];
       if (f) f();
+    },
+
+    /* The race engine takes arguments, so it gets its own door. */
+    engine: function (frac, pedal) {
+      if (!started || muted || !ctx) return;
+      SOUNDS.engine(frac, pedal);
     },
     /* The pause screen silences everything without touching the mute state. */
     setPaused: function (p) {

@@ -1141,14 +1141,500 @@
   }};
 
   /* A standing signpost with a label — exits that aren't doors need one. */
-  P.signpost = { w: 30, d: 20, h: 70, solid: false, draw: function (ctx, x, y, s, tint) {
-    C.line(ctx, x + 15, y + 12, x + 15, y - 40, { seed: s + 'p', stroke: PAL.woodDk, lw: 6, wob: 1 });
-    C.roundRect(ctx, x - 40, y - 70, 110, 32, 6, {
-      seed: s + 'b', fill: PAL.wood, stroke: PAL.outline, lw: 2.8, hatch: 3.4, wash: 0.75
+  /* The board is the whole footprint — it used to hang off the side of its
+   * own sprite canvas, which sliced the border off. */
+  P.signpost = { w: 110, d: 20, h: 78, solid: false, draw: function (ctx, x, y, s, tint) {
+    C.line(ctx, x + 55, y + 12, x - 0 + 55, y - 40, { seed: s + 'p', stroke: PAL.woodDk, lw: 6, wob: 1 });
+    C.roundRect(ctx, x + 2, y - 74, 106, 34, 6, {
+      seed: s + 'b', fill: PAL.wood, stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.75
     });
-    C.text(ctx, tint || 'THIS WAY', x + 15, y - 48, {
-      size: 15, align: 'center', color: PAL.outline, seed: s + 't'
+    C.text(ctx, tint || 'THIS WAY', x + 55, y - 51, {
+      size: 14, align: 'center', color: PAL.outline, seed: s + 't'
     });
+  }};
+
+  /* A chalk outline marking somewhere a Builder could build something. */
+  P.buildSpot = { w: 120, d: 56, h: 0, solid: false, draw: function (ctx, x, y, s, tint) {
+    C.roundRect(ctx, x, y, 120, 56, 10, {
+      seed: s + 'sp', stroke: PAL.white, lw: 3.4, wob: 2.4, passes: 1, strokeAlpha: 0.8
+    });
+    for (var i = 0; i < 4; i++) {
+      C.dot(ctx, x + 10 + (i % 2) * 100, y + 8 + Math.floor(i / 2) * 40, 4, PAL.white, s + 'c' + i);
+    }
+    C.text(ctx, tint || 'BUILD HERE', x + 60, y + 34, {
+      size: 13, align: 'center', color: PAL.white,
+      outline: 3, outlineColor: PAL.outline, seed: s + 't'
+    });
+  }};
+
+  // ------------------------------------------------------- the campsite
+
+  /* A ring of stones with logs laid in it. The flames are drawn by the
+   * station, so the fire can be out or lit without a rebake. */
+  P.firepit = { w: 90, d: 60, h: 0, draw: function (ctx, x, y, s) {
+    C.ellipse(ctx, x + 45, y + 30, 46, 30, {
+      seed: s + 'ash', fill: '#6B6157', stroke: null, hatch: 4, wash: 0.6, fillAlpha: 0.5
+    });
+    for (var i = 0; i < 9; i++) {
+      var a = (i / 9) * Math.PI * 2;
+      C.ellipse(ctx, x + 45 + Math.cos(a) * 44, y + 30 + Math.sin(a) * 28, 11, 9, {
+        seed: s + 'st' + i, fill: i % 2 ? '#B9C3C9' : '#9AA4AA', stroke: PAL.outline,
+        lw: 2.4, hatch: 2.8, wash: 0.8
+      });
+    }
+    C.line(ctx, x + 20, y + 38, x + 68, y + 22, { seed: s + 'lg1', stroke: PAL.woodDk, lw: 9, wob: 1 });
+    C.line(ctx, x + 22, y + 22, x + 70, y + 38, { seed: s + 'lg2', stroke: '#8A5F38', lw: 9, wob: 1 });
+  }};
+
+  /* A heap of marshmallow sticks by the fire. */
+  P.stickPile = { w: 60, d: 34, h: 40, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y, 60, 34);
+    for (var i = 0; i < 5; i++) {
+      C.line(ctx, x + 6 + i * 4, y + 16, x + 34 + i * 5, y - 34 + i * 6, {
+        seed: s + 'sk' + i, stroke: i % 2 ? '#8A5F38' : PAL.woodDk, lw: 4, wob: 1.2
+      });
+    }
+    C.roundRect(ctx, x + 2, y + 6, 40, 16, 5, {
+      seed: s + 'bk', fill: PAL.wood, stroke: PAL.woodDk, lw: 2.6, hatch: 3, wash: 0.8
+    });
+  }};
+
+  /* A log to sit on while the marshmallows toast. */
+  P.campLog = { w: 110, d: 40, h: 30, jumpable: true, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y, 110, 40);
+    C.roundRect(ctx, x, y - 30, 110, 40, 16, {
+      seed: s + 'lg', fill: '#A9784E', stroke: PAL.woodDk, lw: 3.2, hatch: 3.6, wash: 0.8
+    });
+    C.ellipse(ctx, x + 6, y - 10, 9, 18, {
+      seed: s + 'end', fill: '#C9A882', stroke: PAL.woodDk, lw: 2.6, hatch: 3, wash: 0.8
+    });
+    for (var r = 0; r < 3; r++) {
+      C.arc(ctx, x + 6, y - 10, 4 + r * 4, 0, Math.PI * 2, {
+        seed: s + 'rg' + r, stroke: '#8A5F38', lw: 1.6, wob: 0.8, passes: 1, strokeAlpha: 0.6
+      });
+    }
+  }};
+
+  // ------------------------------------------------------- the building site
+
+  /* Four machines, each one a stage of the build. Chunky crayon vehicles —
+   * a five-year-old should know what each one does on sight. */
+  function tracks(ctx, x, y, w, s) {
+    C.roundRect(ctx, x, y - 22, w, 24, 11, {
+      seed: s + 'tk', fill: '#3B2A20', stroke: PAL.outline, lw: 3, hatch: 3, wash: 0.8
+    });
+    for (var i = 0; i < 4; i++) {
+      C.dot(ctx, x + 14 + i * ((w - 28) / 3), y - 10, 6, PAL.steel, s + 'rl' + i);
+    }
+  }
+
+  P.bulldozer = { w: 130, d: 46, h: 92, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y, 130, 46);
+    tracks(ctx, x + 14, y, 104, s);
+    C.roundRect(ctx, x + 30, y - 62, 74, 42, 8, {
+      seed: s + 'bd', fill: '#F2C14E', stroke: PAL.outline, lw: 3.2, hatch: 3.6, wash: 0.75
+    });
+    C.roundRect(ctx, x + 46, y - 90, 44, 30, 6, {
+      seed: s + 'cb', fill: '#E8B23D', stroke: PAL.outline, lw: 3, hatch: 3.2, wash: 0.7
+    });
+    C.roundRect(ctx, x + 52, y - 85, 32, 18, 4, {
+      seed: s + 'gl', fill: PAL.dome, stroke: PAL.outline, lw: 2.2, hatch: 2.6, wash: 0.5, fillAlpha: 0.4
+    });
+    // the blade
+    C.poly(ctx, [[x, y - 44], [x + 26, y - 40], [x + 26, y + 2], [x, y + 6]], {
+      seed: s + 'bl', fill: PAL.steel, stroke: PAL.outline, lw: 3, hatch: 3, wash: 0.78
+    });
+  }};
+
+  P.mixer = { w: 132, d: 46, h: 96, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y, 132, 46);
+    C.roundRect(ctx, x + 10, y - 34, 112, 24, 8, {
+      seed: s + 'ch', fill: '#5FA8D6', stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.75
+    });
+    for (var w = 0; w < 3; w++) {
+      C.ellipse(ctx, x + 24 + w * 42, y - 6, 14, 14, {
+        seed: s + 'wh' + w, fill: '#3B2A20', stroke: PAL.outline, lw: 2.8, hatch: 3, wash: 0.8
+      });
+    }
+    C.roundRect(ctx, x + 8, y - 64, 40, 32, 6, {
+      seed: s + 'cab', fill: '#4A8FC4', stroke: PAL.outline, lw: 3, hatch: 3.2, wash: 0.7
+    });
+    // the drum, on its slant
+    C.ellipse(ctx, x + 88, y - 62, 34, 28, {
+      seed: s + 'dr', fill: PAL.steel, stroke: PAL.outline, lw: 3.2, hatch: 3.6, wash: 0.78
+    });
+    for (var b = 0; b < 3; b++) {
+      C.arc(ctx, x + 88, y - 62, 22 - b * 6, Math.PI * 0.9, Math.PI * 1.7, {
+        seed: s + 'st' + b, stroke: '#8FA0A8', lw: 2.6, wob: 1, passes: 1
+      });
+    }
+  }};
+
+  P.crane = { w: 150, d: 50, h: 210, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y, 150, 50);
+    tracks(ctx, x + 20, y, 100, s);
+    C.roundRect(ctx, x + 34, y - 62, 72, 42, 8, {
+      seed: s + 'cb', fill: '#E8834E', stroke: PAL.outline, lw: 3.2, hatch: 3.6, wash: 0.75
+    });
+    // lattice mast
+    C.line(ctx, x + 60, y - 60, x + 60, y - 196, { seed: s + 'm1', stroke: '#C2633A', lw: 6, wob: 1 });
+    C.line(ctx, x + 88, y - 60, x + 88, y - 196, { seed: s + 'm2', stroke: '#C2633A', lw: 6, wob: 1 });
+    for (var r = 0; r < 6; r++) {
+      C.line(ctx, x + 60, y - 70 - r * 22, x + 88, y - 92 - r * 22, {
+        seed: s + 'x' + r, stroke: '#C2633A', lw: 3, wob: 0.8, passes: 1
+      });
+    }
+    // jib and hook
+    C.line(ctx, x + 74, y - 196, x + 146, y - 176, { seed: s + 'jb', stroke: '#C2633A', lw: 6, wob: 1 });
+    C.line(ctx, x + 138, y - 178, x + 138, y - 126, { seed: s + 'cl', stroke: PAL.outline, lw: 2.4, wob: 0.8 });
+    C.arc(ctx, x + 138, y - 118, 9, Math.PI * 0.1, Math.PI * 1.2, {
+      seed: s + 'hk', stroke: PAL.steel, lw: 4, wob: 0.8
+    });
+  }};
+
+  P.toolbox = { w: 84, d: 40, h: 62, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y, 84, 40);
+    var top = y - 62;
+    C.roundRect(ctx, x, top + 18, 84, 44, 7, {
+      seed: s + 'bx', fill: '#D9402F', stroke: PAL.outline, lw: 3.2, hatch: 3.6, wash: 0.75
+    });
+    C.line(ctx, x + 4, top + 34, x + 80, top + 34, { seed: s + 'ln', stroke: PAL.outline, lw: 2.4, wob: 0.9 });
+    C.arc(ctx, x + 42, top + 18, 22, Math.PI, Math.PI * 2, {
+      seed: s + 'hd', stroke: PAL.outline, lw: 4, wob: 1
+    });
+    // a saw and a hammer poking out
+    C.line(ctx, x + 16, top + 18, x + 10, top - 2, { seed: s + 'hm', stroke: PAL.woodDk, lw: 5, wob: 0.8 });
+    C.rect(ctx, x + 2, top - 10, 20, 10, {
+      seed: s + 'hh', fill: PAL.steel, stroke: PAL.outline, lw: 2.2, hatch: 2.4, wash: 0.85
+    });
+    C.poly(ctx, [[x + 58, top + 16], [x + 80, top - 8], [x + 84, top + 2], [x + 66, top + 18]], {
+      seed: s + 'sw', fill: '#B9C3C9', stroke: PAL.outline, lw: 2.4, hatch: 2.6, wash: 0.85
+    });
+  }};
+
+  /* The wrecking ball, parked and waiting for a finished house. */
+  P.wreckingBall = { w: 120, d: 46, h: 190, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y, 120, 46);
+    tracks(ctx, x + 10, y, 90, s);
+    C.roundRect(ctx, x + 20, y - 58, 64, 38, 8, {
+      seed: s + 'cb', fill: '#B48FD6', stroke: PAL.outline, lw: 3.2, hatch: 3.6, wash: 0.75
+    });
+    C.line(ctx, x + 52, y - 56, x + 108, y - 172, { seed: s + 'arm', stroke: '#8A6FB0', lw: 8, wob: 1 });
+    C.line(ctx, x + 106, y - 168, x + 106, y - 108, { seed: s + 'ch', stroke: PAL.outline, lw: 2.6, wob: 1 });
+    C.ellipse(ctx, x + 106, y - 88, 22, 22, {
+      seed: s + 'bl', fill: '#5A4A3E', stroke: PAL.outline, lw: 3.4, hatch: 3.4, wash: 0.82
+    });
+  }};
+
+  /* The friends' house, one stage at a time. */
+  function siteHouse(stage) {
+    return { w: 220, d: 80, h: stage >= 3 ? 210 : (stage >= 2 ? 150 : (stage >= 1 ? 120 : 16)),
+      solid: stage >= 2,
+      draw: function (ctx, x, y, s) {
+        shadow(ctx, x, y, 220, 80);
+        if (stage === 0) {                     // a cleared, pegged-out lot
+          C.roundRect(ctx, x, y - 10, 220, 76, 6, {
+            seed: s + 'lot', fill: '#C9A882', stroke: '#8A5F38', lw: 2.6, hatch: 4, wash: 0.5, fillAlpha: 0.5
+          });
+          for (var p = 0; p < 4; p++) {
+            var px = x + 10 + (p % 2) * 196, py = y - 4 + Math.floor(p / 2) * 62;
+            C.line(ctx, px, py + 10, px, py - 14, { seed: s + 'pg' + p, stroke: PAL.woodDk, lw: 4, wob: 0.8 });
+          }
+          return;
+        }
+        if (stage === 1) {                     // slab poured
+          C.rect(ctx, x, y - 30, 220, 96, {
+            seed: s + 'slab', fill: '#C4BCAE', stroke: PAL.outline, lw: 3, hatch: 4, wash: 0.7
+          });
+          C.line(ctx, x + 110, y - 30, x + 110, y + 66, {
+            seed: s + 'jt', stroke: '#9C948A', lw: 2.4, wob: 1, passes: 1
+          });
+          return;
+        }
+        // a thin foundation once there are walls on it, not a grey slab
+        C.rect(ctx, x + 4, y - 30, 212, 52, {
+          seed: s + 'slab', fill: '#C4BCAE', stroke: PAL.outline, lw: 3, hatch: 4, wash: 0.7
+        });
+        if (stage === 2) {                     // walls up, no roof
+          C.rect(ctx, x + 8, y - 150, 204, 122, {
+            seed: s + 'wl', fill: PAL.wood, stroke: PAL.outline, lw: 3.4, hatch: 4, wash: 0.72
+          });
+          for (var b = 0; b < 5; b++) {
+            C.line(ctx, x + 8, y - 140 + b * 24, x + 212, y - 140 + b * 24, {
+              seed: s + 'br' + b, stroke: PAL.woodDk, lw: 2, wob: 1.2, passes: 1, strokeAlpha: 0.55
+            });
+          }
+          return;
+        }
+        // finished: walls, roof, door, windows, a little chimney
+        C.rect(ctx, x + 8, y - 150, 204, 122, {
+          seed: s + 'wl', fill: PAL.wood, stroke: PAL.outline, lw: 3.4, hatch: 4, wash: 0.72
+        });
+        C.poly(ctx, [[x - 6, y - 148], [x + 110, y - 210], [x + 226, y - 148]], {
+          seed: s + 'rf', fill: PAL.roof, stroke: PAL.outline, lw: 3.6, hatch: 4, wash: 0.75
+        });
+        C.rect(ctx, x + 92, y - 96, 44, 68, {
+          seed: s + 'dr', fill: PAL.woodDk, stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.8
+        });
+        C.dot(ctx, x + 128, y - 62, 4, PAL.sun, s + 'kn');
+        for (var w2 = 0; w2 < 2; w2++) {
+          C.rect(ctx, x + 26 + w2 * 130, y - 124, 46, 40, {
+            seed: s + 'wn' + w2, fill: PAL.dome, stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.6
+          });
+        }
+        C.rect(ctx, x + 170, y - 214, 24, 40, {
+          seed: s + 'cm', fill: PAL.roof, stroke: PAL.outline, lw: 2.8, hatch: 3, wash: 0.8
+        });
+        C.text(ctx, 'PANDA & YUNA', x + 110, y - 44, {
+          size: 12, align: 'center', color: PAL.white, outline: 2.4, seed: s + 'nm'
+        });
+      }
+    };
+  }
+  P.houseS0 = siteHouse(0);
+  P.houseS1 = siteHouse(1);
+  P.houseS2 = siteHouse(2);
+  P.houseS3 = siteHouse(3);
+
+  /* What is left after the wrecking ball has had its fun. */
+  P.rubble = { w: 200, d: 70, h: 0, draw: function (ctx, x, y, s) {
+    for (var i = 0; i < 14; i++) {
+      var rx = x + 10 + (i * 37) % 180, ry = y + 6 + (i * 23) % 56;
+      C.rect(ctx, rx, ry, 16 + (i % 3) * 6, 10, {
+        seed: s + 'rb' + i, fill: i % 2 ? '#C4BCAE' : PAL.wood, stroke: PAL.outline,
+        lw: 2, hatch: 2.6, wash: 0.75
+      });
+    }
+  }};
+
+  // ------------------------------------------------------- the park build
+
+  /* The swing set as Bobby finds it: one A-frame down, seats in the dirt. */
+  P.swingBroken = { w: 120, d: 40, h: 110, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y, 120, 40);
+    C.line(ctx, x + 8, y + 20, x + 30, y - 86, { seed: s + 'a', stroke: '#C2633A', lw: 6, wob: 1 });
+    // the far leg has given way, so the top bar hangs down
+    C.line(ctx, x + 112, y + 22, x + 104, y - 20, { seed: s + 'b', stroke: '#C2633A', lw: 6, wob: 1.6 });
+    C.line(ctx, x + 28, y - 86, x + 100, y - 24, { seed: s + 'top', stroke: '#C2633A', lw: 6, wob: 1.4 });
+    // seats on the ground
+    C.rect(ctx, x + 34, y + 4, 24, 7, {
+      seed: s + 'st0', fill: PAL.roof, stroke: PAL.outline, lw: 2, hatch: 2.4, wash: 0.8
+    });
+    C.rect(ctx, x + 70, y + 14, 24, 7, {
+      seed: s + 'st1', fill: PAL.roof, stroke: PAL.outline, lw: 2, hatch: 2.4, wash: 0.8
+    });
+    // hazard tape
+    for (var t = 0; t < 3; t++) {
+      C.line(ctx, x - 4, y - 46 + t * 6, x + 124, y - 26 + t * 6, {
+        seed: s + 'tp' + t, stroke: t % 2 ? PAL.outline : '#F2C14E', lw: 5, wob: 2, passes: 1
+      });
+    }
+  }};
+
+  /* A see-saw: one plank, one fulcrum, two friends. */
+  P.seesaw = { w: 140, d: 44, h: 56, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y, 140, 44);
+    C.poly(ctx, [[x + 56, y - 4], [x + 84, y - 4], [x + 70, y - 40]], {
+      seed: s + 'ful', fill: '#C2633A', stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.78
+    });
+    C.roundRect(ctx, x + 2, y - 50, 136, 14, 6, {
+      seed: s + 'pl', fill: PAL.wood, stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.8
+    });
+    for (var e = 0; e < 2; e++) {
+      var hx = x + 16 + e * 106;
+      C.arc(ctx, hx, y - 50, 10, Math.PI, Math.PI * 2, {
+        seed: s + 'hd' + e, stroke: PAL.outline, lw: 3.4, wob: 0.8
+      });
+    }
+  }};
+
+  /* A snug den for the pom-poms, with three little doorways. */
+  P.critterBox = { w: 96, d: 44, h: 74, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y, 96, 44);
+    var top = y - 74;
+    C.roundRect(ctx, x, top, 96, 74, 8, {
+      seed: s + 'bx', fill: PAL.wood, stroke: PAL.woodDk, lw: 3.2, hatch: 3.6, wash: 0.8
+    });
+    C.roundRect(ctx, x - 6, top - 12, 108, 16, 5, {
+      seed: s + 'lid', fill: PAL.woodDk, stroke: PAL.outline, lw: 2.8, hatch: 3, wash: 0.8
+    });
+    for (var d = 0; d < 3; d++) {
+      C.arc(ctx, x + 22 + d * 26, top + 60, 12, Math.PI, Math.PI * 2, {
+        seed: s + 'dr' + d, fill: '#3B2A20', stroke: PAL.outline, lw: 2.4, hatch: 2.6, wash: 0.7
+      });
+    }
+    // a blanket spilling over the front
+    C.roundRect(ctx, x + 8, top + 16, 80, 26, 8, {
+      seed: s + 'bl', fill: '#E8A0B4', stroke: PAL.outline, lw: 2.4, hatch: 3, wash: 0.7
+    });
+    C.text(ctx, 'CRITTERS', x + 48, top + 8, {
+      size: 11, align: 'center', color: PAL.white, outline: 2, seed: s + 't'
+    });
+  }};
+
+  // ------------------------------------------------------- the backyard
+
+  /* A run of white pickets. Solid, so the yard has a real edge. */
+  P.fence = { w: 96, d: 14, h: 54, draw: function (ctx, x, y, s) {
+    var top = y - 54;
+    for (var i = 0; i < 4; i++) {
+      var px = x + 4 + i * 23;
+      C.poly(ctx, [[px, top + 10], [px + 11, top], [px + 22, top + 10],
+                   [px + 22, top + 54], [px, top + 54]], {
+        seed: s + 'pk' + i, fill: PAL.white, stroke: PAL.outline,
+        lw: 2.4, hatch: 4, wash: 0.85, fillAlpha: 0.35
+      });
+    }
+    for (var r = 0; r < 2; r++) {
+      C.line(ctx, x, top + 20 + r * 20, x + 96, top + 20 + r * 20, {
+        seed: s + 'rl' + r, stroke: PAL.outline, lw: 3, wob: 1, passes: 1, strokeAlpha: 0.7
+      });
+    }
+  }};
+
+  /* The garden tap on the back wall: fill the watering can here. */
+  P.spigot = { w: 46, d: 26, h: 56, draw: function (ctx, x, y, s) {
+    var top = y - 56;
+    C.rect(ctx, x + 6, top + 14, 34, 40, {
+      seed: s + 'bk', fill: '#C4BCAE', stroke: PAL.outline, lw: 2.6, hatch: 3.4, wash: 0.8
+    });
+    C.line(ctx, x + 23, top + 26, x + 23, top + 6, { seed: s + 'p', stroke: '#8FA0A8', lw: 6, wob: 0.7 });
+    C.line(ctx, x + 23, top + 10, x + 40, top + 10, { seed: s + 'sp', stroke: '#8FA0A8', lw: 6, wob: 0.7 });
+    C.dot(ctx, x + 23, top + 3, 6, '#D9402F', s + 'hd');
+    C.dot(ctx, x + 41, top + 20, 3.4, '#8FD0EE', s + 'dr');
+    C.ellipse(ctx, x + 23, y + 8, 22, 9, {
+      seed: s + 'pd', fill: '#8FD0EE', stroke: null, hatch: 3, wash: 0.5, fillAlpha: 0.5
+    });
+  }};
+
+  /* Where the garden tools live when Bobby isn't using them. */
+  P.toolRack = { w: 74, d: 20, h: 78, draw: function (ctx, x, y, s) {
+    var top = y - 78;
+    C.rect(ctx, x, top + 46, 74, 30, {
+      seed: s + 'bx', fill: PAL.wood, stroke: PAL.woodDk, lw: 3, hatch: 3.6, wash: 0.8
+    });
+    C.line(ctx, x + 4, top + 46, x + 4, top, { seed: s + 'p1', stroke: PAL.woodDk, lw: 4, wob: 0.8 });
+    C.line(ctx, x + 70, top + 46, x + 70, top, { seed: s + 'p2', stroke: PAL.woodDk, lw: 4, wob: 0.8 });
+    C.line(ctx, x + 4, top + 8, x + 70, top + 8, { seed: s + 'bar', stroke: PAL.woodDk, lw: 4, wob: 0.8 });
+    // a hoe and a can hanging up, so the rack reads at a glance
+    C.line(ctx, x + 22, top + 8, x + 18, top + 42, { seed: s + 'hs', stroke: '#8A5F38', lw: 4, wob: 0.7 });
+    C.rect(ctx, x + 10, top + 40, 18, 7, {
+      seed: s + 'hb', fill: '#B9C3C9', stroke: PAL.outline, lw: 2, hatch: 2.4, wash: 0.85
+    });
+    C.roundRect(ctx, x + 42, top + 18, 24, 20, 4, {
+      seed: s + 'cn', fill: '#5FBFD6', stroke: PAL.outline, lw: 2.2, hatch: 2.8, wash: 0.8
+    });
+    C.line(ctx, x + 64, top + 24, x + 72, top + 16, { seed: s + 'cs', stroke: '#5FBFD6', lw: 3, wob: 0.6 });
+  }};
+
+  /* Rough, unturned sod — a garden plot before the hoe gets to it. */
+  P.sodPatch = { w: 70, d: 48, h: 0, draw: function (ctx, x, y, s) {
+    C.roundRect(ctx, x, y, 70, 48, 10, {
+      seed: s, fill: PAL.grassDk, stroke: '#4E7A3A', lw: 2.6, hatch: 3.4, wash: 0.55, fillAlpha: 0.5
+    });
+    for (var i = 0; i < 7; i++) {
+      var gx = x + 8 + (i * 13) % 58, gy = y + 10 + (i * 17) % 30;
+      C.line(ctx, gx, gy, gx + 2, gy - 7, {
+        seed: s + 'tuft' + i, stroke: PAL.grassDk, lw: 2, wob: 1, passes: 1
+      });
+    }
+  }};
+
+  /* A hanging aisle board. The tint carries the words. */
+  P.aisleSign = { w: 120, d: 10, h: 96, solid: false, draw: function (ctx, x, y, s, tint) {
+    var top = y - 96;
+    C.line(ctx, x + 24, top, x + 24, top + 22, { seed: s + 'w1', stroke: PAL.outline, lw: 2.2, wob: 0.8 });
+    C.line(ctx, x + 96, top, x + 96, top + 22, { seed: s + 'w2', stroke: PAL.outline, lw: 2.2, wob: 0.8 });
+    C.roundRect(ctx, x, top + 20, 120, 40, 6, {
+      seed: s + 'bd', fill: PAL.white, stroke: PAL.outline, lw: 3, hatch: 4, wash: 0.9, fillAlpha: 0.25
+    });
+    C.text(ctx, tint || 'AISLE', x + 60, top + 46, {
+      size: 15, align: 'center', color: PAL.roof, seed: s + 't'
+    });
+  }};
+
+  // ------------------------------------------------------- treehouse bits
+
+  /* A real branch, poking up through the treehouse floor. */
+  P.branch = { w: 120, d: 34, h: 96, draw: function (ctx, x, y, s) {
+    C.line(ctx, x + 8, y + 20, x + 108, y - 76, {
+      seed: s + 'b', stroke: PAL.woodDk, lw: 15, wob: 1.4
+    });
+    C.line(ctx, x + 62, y - 32, x + 104, y - 20, {
+      seed: s + 'b2', stroke: PAL.woodDk, lw: 9, wob: 1.2
+    });
+    for (var i = 0; i < 6; i++) {
+      var lx = x + 40 + i * 13, ly = y - 18 - i * 10;
+      C.ellipse(ctx, lx, ly, 13, 9, {
+        seed: s + 'lf' + i, fill: i % 2 ? PAL.grass : PAL.grassDk, stroke: PAL.outline,
+        lw: 2, hatch: 3, wash: 0.8
+      });
+    }
+  }};
+
+  /* A knot-hole window: round, ringed with bark. */
+  P.roundWindow = { w: 84, d: 10, h: 84, solid: false, draw: function (ctx, x, y, s) {
+    var cx = x + 42, cy = y - 46;
+    C.ellipse(ctx, cx, cy, 40, 40, {
+      seed: s + 'rim', fill: PAL.woodDk, stroke: PAL.outline, lw: 3.4, hatch: 3.6, wash: 0.8
+    });
+    C.ellipse(ctx, cx, cy, 30, 30, {
+      seed: s + 'sky', fill: PAL.sky, stroke: PAL.outline, lw: 2.4, hatch: 3.4, wash: 0.7
+    });
+    C.ellipse(ctx, cx - 8, cy + 6, 12, 7, {
+      seed: s + 'cl', fill: PAL.white, stroke: null, hatch: 2.6, wash: 0.9, fillAlpha: 0.5
+    });
+    C.arc(ctx, cx, cy, 34, Math.PI * 1.1, Math.PI * 1.5, {
+      seed: s + 'bk', stroke: '#6B4A2A', lw: 3, wob: 1.4, passes: 1
+    });
+  }};
+
+  /* A rope rail along the open side of the treehouse deck. */
+  P.ropeRail = { w: 150, d: 12, h: 46, solid: false, draw: function (ctx, x, y, s) {
+    var top = y - 46;
+    for (var i = 0; i < 3; i++) {
+      var px = x + 6 + i * 68;
+      C.line(ctx, px, y, px, top, { seed: s + 'po' + i, stroke: PAL.woodDk, lw: 7, wob: 0.9 });
+      C.dot(ctx, px, top - 2, 5, PAL.wood, s + 'kn' + i);
+    }
+    for (var r = 0; r < 2; r++) {
+      var ry = top + 6 + r * 18;
+      C.arc(ctx, x + 40, ry, 36, Math.PI * 1.15, Math.PI * 1.85, {
+        seed: s + 'r' + r, stroke: '#C9A882', lw: 4, wob: 1.6, passes: 1
+      });
+      C.arc(ctx, x + 108, ry, 36, Math.PI * 1.15, Math.PI * 1.85, {
+        seed: s + 'r2' + r, stroke: '#C9A882', lw: 4, wob: 1.6, passes: 1
+      });
+    }
+  }};
+
+  /* A hanging lantern — the treehouse's own little light. */
+  P.lantern = { w: 40, d: 16, h: 96, solid: false, draw: function (ctx, x, y, s) {
+    var top = y - 96;
+    C.line(ctx, x + 20, top, x + 20, top + 26, { seed: s + 'ch', stroke: PAL.outline, lw: 2.2, wob: 0.8 });
+    C.roundRect(ctx, x + 4, top + 26, 32, 40, 6, {
+      seed: s + 'bd', fill: '#F2C14E', stroke: PAL.outline, lw: 2.8, hatch: 3, wash: 0.75
+    });
+    C.dot(ctx, x + 20, top + 46, 8, '#FBE29A', s + 'gl');
+    C.line(ctx, x + 4, top + 30, x + 36, top + 30, { seed: s + 'tp', stroke: PAL.outline, lw: 2.4, wob: 0.7 });
+    C.line(ctx, x + 4, top + 62, x + 36, top + 62, { seed: s + 'bt', stroke: PAL.outline, lw: 2.4, wob: 0.7 });
+  }};
+
+  /* Little triangle flags strung across the treehouse. */
+  P.bunting = { w: 220, d: 8, h: 46, solid: false, draw: function (ctx, x, y, s) {
+    var top = y - 46;
+    var cols = ['#E8A0B4', '#F2C14E', '#7FBFA8', '#B48FD6', '#5FA8D6'];
+    C.arc(ctx, x + 110, top - 22, 118, Math.PI * 0.18, Math.PI * 0.82, {
+      seed: s + 'str', stroke: PAL.outline, lw: 2.4, wob: 1.4, passes: 1
+    });
+    for (var i = 0; i < 6; i++) {
+      var fx = x + 16 + i * 38;
+      var dip = Math.sin((i / 5) * Math.PI) * 12;
+      C.poly(ctx, [[fx, top + dip], [fx + 24, top + dip], [fx + 12, top + dip + 26]], {
+        seed: s + 'fl' + i, fill: cols[i % cols.length], stroke: PAL.outline,
+        lw: 2.2, hatch: 3, wash: 0.8
+      });
+    }
   }};
 
   // ------------------------------------------------------- sprite baking

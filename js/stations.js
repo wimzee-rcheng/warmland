@@ -80,9 +80,9 @@
         if (W.audio) W.audio.play('pour');
         return;
       }
-      if (W.basket.full()) { say('The basket is full!'); return; }
       st.s.pour = 1.2;
-      W.basket.add('boba');
+      var bump0 = W.hands.hold('boba');
+      if (bump0) W.dropped.dropItem(G().state.room, bump0, W.sceneHouse.player.x, W.sceneHouse.player.y);
       say('One boba, coming up!');
       if (W.audio) W.audio.play('pour');
     },
@@ -104,12 +104,12 @@
   S.trash = {
     label: 'Trash Can',
     prompt: function (st) {
-      if (!W.basket.count()) return 'Trash Can';
+      if (!W.tray.count() && !G().state.held) return 'Trash Can';
       return st.s.confirm > 0 ? 'Really? Z again to dump it all' : 'Throw everything away';
     },
     act: function (st) {
-      var b = G().state.basket;
-      if (!b.length) { say('Nothing to throw away.'); return; }
+      var b = G().state.tray;
+      if (!b.length && !G().state.held) { say('Nothing to throw away.'); return; }
       // one accidental Z must never wipe a shopping trip
       if (!(st.s.confirm > 0)) {
         st.s.confirm = 3;
@@ -118,6 +118,7 @@
       }
       st.s.confirm = 0;
       b.length = 0;
+      G().state.held = null;
       st.s.wob = 0.6;
       W.fx.dust(st.x + st.w / 2, st.y - 30, 6);
       say('All gone. Fresh start!');
@@ -214,16 +215,16 @@
     prompt: function (st) {
       if (st.s.dish) return 'Take the ' + W.ITEMS[st.s.dish].name;
       if (st.s.cooking > 0) return 'Cooking...';
-      if (W.basket.ofKind('ingredient').length || W.basket.ofKind('pantry').length) return 'Add and cook';
+      if (W.tray.count()) return 'Add and cook';
       if (st.s.contents.length) return 'Cook it!';
       return 'Cook';
     },
 
     act: function (st) {
       if (st.s.dish) {
-        if (W.basket.full()) { say('The basket is full!'); return; }
-        W.basket.add(st.s.dish);
-        say('A fresh ' + W.ITEMS[st.s.dish].name + '!');
+        var bumped = W.hands.hold(st.s.dish);
+        if (bumped) W.dropped.dropItem(G().state.room, bumped, W.sceneHouse.player.x, W.sceneHouse.player.y);
+        say('A fresh ' + W.ITEMS[st.s.dish].name + '! Take it to the table.');
         st.s.dish = null;
         return;
       }
@@ -231,15 +232,9 @@
 
       // Everything edible goes in — cooking NEVER refuses. Known combos make
       // the real dish; anything else becomes Bobby's Surprise.
-      var b = G().state.basket;
-      var keep = [];
-      for (var i = 0; i < b.length; i++) {
-        var k = W.ITEMS[b[i]].kind;
-        if (k === 'ingredient' || k === 'pantry') st.s.contents.push(b[i]);
-        else keep.push(b[i]);
-      }
-      b.length = 0;
-      for (var j = 0; j < keep.length; j++) b.push(keep[j]);
+      // the whole tray goes in the pot — that's all the tray ever holds
+      var tipped = W.tray.takeAll();
+      for (var i = 0; i < tipped.length; i++) st.s.contents.push(tipped[i]);
 
       if (!st.s.contents.length) {
         say('Get some ingredients from the fridge first.');
@@ -248,7 +243,7 @@
 
       var r = W.matchRecipe(st.s.contents);
       var could = W.possibleRecipes(st.s.contents);
-      if (!r && could.length && W.basket.count() === 0) {
+      if (!r && could.length && W.tray.count() === 0) {
         // a known recipe is one trip away — hint, but cook on the next press
         if (!st.s.hinted) {
           st.s.hinted = true;
@@ -271,13 +266,20 @@
         if (Math.random() < dt * 6) W.fx.steam(st.x + st.w / 2, st.y - 40);
         if (st.s.cooking <= 0) {
           st.s.cooking = 0;
-          st.s.dish = W.recipeDish(st.s.recipe);
+          var made = W.recipeDish(st.s.recipe);
           st.s.contents = [];
           W.fx.sparkle(st.x + st.w / 2, st.y - 40, 14, 70);
-          say('The ' + W.ITEMS[st.s.dish].name + ' is ready!');
+          // straight into his paws — nobody wants to press Z at an oven
+          var bumped0 = W.hands.hold(made);
+          if (bumped0) {
+            W.dropped.dropItem(G().state.room, bumped0,
+              W.sceneHouse.player.x, W.sceneHouse.player.y);
+          }
+          st.s.dish = null;
+          say('The ' + W.ITEMS[made].name + ' is ready! Take it to the table.');
           if (W.audio) W.audio.play('ding');
           G().idea('cook');
-          G().first('dish-' + st.s.dish, 'First ' + W.ITEMS[st.s.dish].name + '!');
+          G().first('dish-' + made, 'First ' + W.ITEMS[made].name + '!');
           if (W.sceneHouse.friendsReact) W.sceneHouse.friendsReact('cook');
         }
       }
@@ -309,48 +311,84 @@
     label: 'Table',
     init: function (st) { if (!st.s.set) st.s.set = []; },
     prompt: function (st) {
-      var dish = W.basket.ofKind('dish')[0];
-      var P2 = G().state.plates;
-      if (dish && st.s.set.length < 3) {
-        if (P2.stored > 0) return 'Set the table';
-        return P2.rack > 0 ? 'Put the plates away first!' : 'Wash a plate first!';
-      }
-      if (st.s.set.length) return 'Sit on a chair to eat!';
+      var dish = W.hands.kind() === 'dish' ? W.hands.item() : null;
+      if (dish && st.s.set.length < 3) return 'Dinner time!';
+      if (st.s.set.length) return 'Sit down to eat!';
       return 'Table';
     },
     act: function (st) {
-      var dish = W.basket.ofKind('dish')[0];
-      var P2 = G().state.plates;
+      var dish = W.hands.kind() === 'dish' ? W.hands.item() : null;
+      var H = W.sceneHouse;
       if (!dish) {
-        say(st.s.set.length ? 'Sit on a chair and press Z to eat!' : 'Cook something first!');
+        if (st.s.set.length) {
+          // already laid — just take a seat
+          var c0 = nearestChair(st, H);
+          if (c0) { H.seated = c0; H.player.x = c0.x + c0.w / 2; H.player.y = c0.y + c0.h / 2 + 4; }
+          else say('Pull up a chair!');
+        } else say('Cook something first!');
         return;
       }
       if (st.s.set.length >= 3) { say('The table is full!'); return; }
-      if (P2.stored <= 0) {
-        say(P2.rack > 0 ? 'The clean plates are still on the rack — put them away!'
-                        : 'No clean plates! Wash up at the sink.');
-        return;
-      }
-      P2.stored--;
-      W.basket.remove(dish);
+      if (G().state.plates.stored > 0) G().state.plates.stored--;
+      W.hands.drop();
       st.s.set.push(dish);
-      say('Dinner is served!');
+      st.s.biteStage = 0;
+      // placing dinner sits you straight down — but eating waits for you
+      var ch = nearestChair(st, H);
+      if (ch) {
+        H.seated = ch;
+        H.player.x = ch.x + ch.w / 2;
+        H.player.y = ch.y + ch.h / 2 + 4;
+        say('Dinner is served! Z to eat, A to call everyone.');
+      } else {
+        say('Dinner is served! Find a chair.');
+      }
       if (W.audio) W.audio.play('clack');
     },
     drawOn: function (ctx, st) {
       for (var i = 0; i < st.s.set.length; i++) {
         var px2 = st.x + 18 + i * 32, py2 = st.y - 18 - (i % 2) * 6;
         plate(ctx, px2, py2 + 4);
-        W.drawItem(ctx, st.s.set[i], px2, py2 - 4, 11);
+        // the top dish visibly shrinks as it's eaten, crumbs and all
+        var stage = (i === 0 && st.s.biteStage) ? st.s.biteStage : 0;
+        if (stage < 3) {
+          W.drawItem(ctx, st.s.set[i], px2, py2 - 4, 11 - stage * 3);
+          for (var cb = 0; cb < stage; cb++) {
+            C.dot(ctx, px2 - 8 + cb * 8, py2 + 4, 1.6, '#8A5F38', 'crumb' + i + cb);
+          }
+        } else {
+          C.dot(ctx, px2 - 4, py2 + 2, 1.8, '#8A5F38', 'cr1' + i);
+          C.dot(ctx, px2 + 5, py2 + 4, 1.6, '#8A5F38', 'cr2' + i);
+        }
       }
     }
   };
 
+  /* The chair nearest a table that nobody has claimed. */
+  function nearestChair(table, H) {
+    var best = null, bd = 1e9;
+    for (var i = 0; i < H.stations.length; i++) {
+      var c = H.stations[i];
+      if (c.kind !== 'chair' || c.s.taker) continue;
+      var d = Math.hypot((c.x + c.w / 2) - (table.x + table.w / 2),
+                         (c.y + c.h / 2) - (table.y + table.h / 2));
+      if (d < bd) { bd = d; best = c; }
+    }
+    return bd < 220 ? best : null;
+  }
+
   /* Chairs are for sitting — the eat action lives on the seated state. */
   S.chair = {
     label: 'Sit Down',
+    /* `taker` marks who is sitting there DURING a dinner. It lives in the
+     * persistent bucket, so if the player wandered off mid-invite (or saved
+     * and quit), a stale marker would leave the chair "Taken!" forever —
+     * clear it whenever the room is rebuilt. */
+    init: function (st) { st.s.taker = null; },
+    prompt: function (st) { return st.s.taker ? 'Taken!' : 'Sit Down'; },
     act: function (st) {
       var H = W.sceneHouse;
+      if (st.s.taker) { say('Somebody is already sitting there!'); return; }
       H.seated = st;
       H.player.x = st.x + st.w / 2;
       H.player.y = st.y + st.h / 2 + 4;
@@ -358,16 +396,6 @@
     }
   };
 
-  /* Eating, called by the scene while seated next to a set table. */
-  W.stationEat = function (tableSt, player) {
-    var dish = tableSt.s.set.shift();
-    if (!dish) return;
-    G().state.plates.dirty++;
-    G().state.meals = (G().state.meals || 0) + 1;
-    W.fx.hearts(player.x, player.y - 90, 6);
-    say('Mmm! ' + W.ITEMS[dish].name + '. Keena Meena to the chef!', PAL.accent);
-    if (W.audio) W.audio.play('chomp');
-  };
 
   S.sink = {
     label: 'Sink',
@@ -478,6 +506,14 @@
       H.player.y = lie[1];
       H.startSleep(st.wake || [st.x + st.w / 2, st.y + st.h + 18]);
     }
+  };
+
+  // the treehouse's knot-hole opens exactly like a window
+  S.roundWindow = {
+    label: 'Open the Knot-Hole',
+    prompt: function (st) { return st.s.open ? 'Close the knot-hole' : 'Open the knot-hole'; },
+    act: function (st) { S.window.act(st); },
+    update: function (st, dt) { S.window.update(st, dt); }
   };
 
   S.window = {
@@ -652,8 +688,8 @@
   S.snackStash = {
     label: 'Snacks',
     act: function (st) {
-      if (W.basket.full()) { say('The basket is full!'); return; }
-      W.basket.add('boba');
+      var bump4 = W.hands.hold('boba');
+      if (bump4) W.dropped.dropItem(G().state.room, bump4, W.sceneHouse.player.x, W.sceneHouse.player.y);
       st.s.rustle = 1.2;
     },
     update: function (st, dt) { if (st.s.rustle > 0) st.s.rustle -= dt; }
@@ -661,8 +697,8 @@
 
   S.beanbag = {
     label: 'Flop Down',
-    act: function (st) { st.s.flop = 2.6; },
-    update: function (st, dt) { if (st.s.flop > 0) st.s.flop -= dt; }
+    prompt: function () { return 'Flop down'; },
+    act: function (st) { W.sceneHouse.mount('flop', st); }
   };
 
   /* The garden: plant seeds, water once a day, harvest after two mornings.
@@ -670,42 +706,68 @@
   var CROPS = ['tomato', 'onion', 'mushroom'];
   S.garden = {
     label: 'Garden',
-    init: function (st) { if (st.s.stage === undefined) st.s.stage = 0; },
+    // -1 is rough sod: every plot starts as lawn and has to be broken first.
+    init: function (st) { if (st.s.stage === undefined) st.s.stage = -1; },
     prompt: function (st) {
-      if (st.s.stage === 0) return W.basket.has('seeds') ? 'Plant the seeds' : 'Needs seeds (shop!)';
+      if (st.s.plow > 0) return 'Plowing...';
+      if (st.s.stage < 0) return W.hands.has('hoe') ? 'Plow the soil' : 'Rough sod (need the hoe)';
+      if (st.s.stage === 0) return W.hands.has('seeds') ? 'Plant the seeds' : 'Needs seeds (grocery!)';
       if (st.s.stage >= 3) return 'Harvest!';
       if (st.s.water > 0) return 'Growing...';
-      return 'Water the plants';
+      if (!W.hands.has('wateringCan')) return 'Thirsty (need the can)';
+      return G().state.canWater > 0 ? 'Water the plants' : 'The can is empty';
     },
     act: function (st) {
+      var G2 = G();
+      if (st.s.plow > 0) return;
+
+      if (st.s.stage < 0) {
+        if (!W.hands.has('hoe')) { say('This ground is hard! I need the hoe from the rack.'); return; }
+        st.s.plow = 1.1;
+        say('Chop chop chop!');
+        if (W.audio) W.audio.play('thud');
+        return;
+      }
       if (st.s.stage === 0) {
-        if (!W.basket.has('seeds')) { say('I need seeds — the shop sells them!'); return; }
-        W.basket.remove('seeds');
+        if (!W.hands.has('seeds')) { say('I need seeds — the grocery store sells them!'); return; }
+        W.hands.drop();
         st.s.stage = 1;
-        st.s.crop = CROPS[Math.floor(W.mulberry32(W.hash('crop' + G().state.day + st.idx))() * CROPS.length)];
+        st.s.crop = CROPS[Math.floor(W.mulberry32(W.hash('crop' + G2.state.day + st.idx))() * CROPS.length)];
         say('Planted! Water it and watch it grow.');
         if (W.audio) W.audio.play('clack');
         return;
       }
       if (st.s.stage >= 3) {
-        if (W.basket.full()) { say('The basket is full!'); return; }
-        W.basket.add(st.s.crop);
-        if (!W.basket.full()) W.basket.add(st.s.crop);   // a generous harvest
+        if (W.tray.full()) { say('The tray is full!'); return; }
+        W.tray.add(st.s.crop);
+        W.tray.add(st.s.crop);              // a generous harvest, if it fits
         say('A ' + W.ITEMS[st.s.crop].name + ' harvest! Fresh for cooking.');
         W.fx.sparkle(st.x + st.w / 2, st.y + 10, 12, 60);
         st.s.stage = 0;
         st.s.crop = null;
-        G().first('garden', 'First harvest!');
-        G().idea('cook');
+        G2.first('garden', 'First harvest!');
+        G2.idea('cook');
         if (W.audio) W.audio.play('ding');
         return;
       }
       if (st.s.water > 0) { say('Glug glug... look at it go!'); return; }
-      // water as often as you like — growing is the fun, not the waiting
+      if (!W.hands.has('wateringCan')) { say('I need the watering can from the rack.'); return; }
+      if (G2.state.canWater <= 0) { say('The can is empty — fill it at the spigot!'); return; }
+      G2.state.canWater--;
       st.s.water = 1.3;
       if (W.audio) W.audio.play('water');
     },
     update: function (st, dt) {
+      if (st.s.plow > 0) {
+        st.s.plow -= dt;
+        if (Math.random() < 0.5) W.fx.dust(st.x + 10 + Math.random() * 50, st.y + 30, 1);
+        if (st.s.plow <= 0) {
+          st.s.stage = 0;
+          W.requestRebuild(W.sceneHouse.name);
+          say('Lovely soil! Ready for seeds.');
+          if (W.audio) W.audio.play('ding');
+        }
+      }
       if (st.s.water > 0) {
         st.s.water -= dt;
         if (st.s.water <= 0 && st.s.stage > 0 && st.s.stage < 3) {
@@ -749,6 +811,48 @@
       }
     }
   };
+
+  /* The rack by the fence: take a tool, or hang it back up. */
+  S.toolRack = {
+    label: 'Tool Rack',
+    prompt: function () {
+      var k = W.hands.kind();
+      if (k === 'tool') return 'Hang up the ' + W.ITEMS[W.hands.item()].name;
+      return 'Take a tool';
+    },
+    act: function (st) {
+      if (W.hands.kind() === 'tool') {
+        say('Hung up the ' + W.ITEMS[W.hands.item()].name + '.');
+        W.hands.drop();
+        if (W.audio) W.audio.play('clack');
+        return;
+      }
+      // alternate: whichever tool you didn't take last time
+      st.s.next = st.s.next === 'wateringCan' ? 'hoe' : 'wateringCan';
+      var bumped = W.hands.hold(st.s.next);
+      if (bumped) W.dropped.dropItem(W.sceneHouse.name, bumped, st.x + 10, st.y + 50);
+      say(st.s.next === 'hoe'
+        ? 'The hoe! Good for breaking up sod.'
+        : 'The watering can. Fill it at the spigot.');
+    }
+  };
+
+  /* The garden tap. Three waterings per fill. */
+  S.spigot = {
+    label: 'Spigot',
+    prompt: function () {
+      if (!W.hands.has('wateringCan')) return 'A garden tap (need the can)';
+      return G().state.canWater >= 3 ? 'The can is full' : 'Fill the can';
+    },
+    act: function (st) {
+      if (!W.hands.has('wateringCan')) { say('I need the watering can first!'); return; }
+      if (G().state.canWater >= 3) { say('It is already full to the brim.'); return; }
+      G().state.canWater = 3;
+      say('Sloosh! Three good waterings in there.');
+      for (var i = 0; i < 6; i++) W.fx.bubble(st.x + 8 + i * 6, st.y + 20);
+      if (W.audio) W.audio.play('water');
+    }
+  };
   var gardenTiles = null;
 
   /* Seeds for sale at the shop. */
@@ -767,9 +871,9 @@
     act: function () {
       if (!G().state.pet) { say('First adopt a fluff at the park!'); return; }
       if (G().state.money < 2) { say('Treats cost 2 coins.'); return; }
-      if (W.basket.full()) { say('The basket is full!'); return; }
       G().state.money -= 2;
-      W.basket.add('treat');
+      var bump2 = W.hands.hold('treat');
+      if (bump2) W.dropped.dropItem(G().state.room, bump2, W.sceneHouse.player.x, W.sceneHouse.player.y);
       say('One wiggly treat!');
       if (W.audio) W.audio.play('coin');
     }
@@ -779,9 +883,9 @@
     label: 'Seeds — 3 coins',
     act: function () {
       if (G().state.money < 3) { say('Seeds cost 3 coins. Do a shift!'); return; }
-      if (W.basket.full()) { say('The basket is full!'); return; }
       G().state.money -= 3;
-      W.basket.add('seeds');
+      var bump1 = W.hands.hold('seeds');
+      if (bump1) W.dropped.dropItem(G().state.room, bump1, W.sceneHouse.player.x, W.sceneHouse.player.y);
       say('A little bag of maybe-anything seeds!');
       if (W.audio) W.audio.play('coin');
     }
@@ -867,13 +971,21 @@
 
   S.tree = {
     label: 'Build a Treehouse',
-    requires: 'build',
+    locked: function () { return !G().state.builtTreehouse && !W.can('build'); },
+    /* NOTE: no `requires` — that gated the finished treehouse's "Climb up"
+     * too, locking every costume but the builder out of their own clubhouse.
+     * Only the BUILD branch checks the ability. */
     prompt: function () {
-      return G().state.builtTreehouse ? 'Climb up' : 'Build a Treehouse';
+      if (G().state.builtTreehouse) return 'Climb up';
+      return W.can('build') ? 'Build a Treehouse' : 'Need: Builder Bobby';
     },
     act: function (st) {
       if (G().state.builtTreehouse) {
         G().fadeTo('house', { room: 'treehouse' });
+        return;
+      }
+      if (!W.can('build')) {
+        say('I need the Builder outfit to build this. Try the magic closet!');
         return;
       }
       st.s.building = 2.6;
@@ -943,17 +1055,16 @@
         st.s.wait = 0;
         st.s.casts = (st.s.casts || 0) + 1;
         var roll = W.mulberry32(W.hash('fish' + G().state.day + st.s.casts))();
-        if (W.basket.full()) { say('Caught something — but the basket is full!'); return; }
+        var caught = roll < 0.62 ? 'fish' : roll < 0.82 ? 'boot' : 'tinyUfo';
+        var bump3 = W.hands.hold(caught);
+        if (bump3) W.dropped.dropItem(G().state.room, bump3, W.sceneHouse.player.x, W.sceneHouse.player.y);
         if (roll < 0.62) {
-          W.basket.add('fish');
           say('A fish! Dinner sorted.', '#5FA8D6');
           G().first('fish', 'First catch!');
         } else if (roll < 0.82) {
-          W.basket.add('boot');
           say('...an old boot. Classic.', PAL.woodDk);
           G().first('boot', 'Caught... a boot?');
         } else {
-          W.basket.add('tinyUfo');
           say('A TINY UFO?! The pond is full of surprises.', PAL.dome);
           G().first('tinyufo', 'Caught a tiny UFO!');
         }
@@ -1050,6 +1161,418 @@
     }
   };
 
+  // ------------------------------------------------------- the campsite
+
+  var flameTiles = null;
+  function flameTile(ph) {
+    if (!flameTiles) {
+      flameTiles = [];
+      for (var p = 0; p < 3; p++) {
+        var cv = W.crayon.offscreen(90, 110);
+        var g = cv.getContext('2d');
+        g.translate(45, 90);
+        var lean = (p - 1) * 5;
+        C.poly(g, [[-22, 4], [0 + lean, -62 - p * 4], [22, 4]], {
+          seed: 'fl' + p, fill: '#E8834E', stroke: null, hatch: 3.4, wash: 0.85, fillAlpha: 0.8
+        });
+        C.poly(g, [[-13, 4], [2 + lean, -42 - p * 3], [13, 4]], {
+          seed: 'fm' + p, fill: '#F2C14E', stroke: null, hatch: 3, wash: 0.9, fillAlpha: 0.85
+        });
+        C.poly(g, [[-6, 4], [1 + lean, -22], [6, 4]], {
+          seed: 'fi' + p, fill: '#FFF6E0', stroke: null, hatch: 2.6, wash: 0.9, fillAlpha: 0.8
+        });
+        flameTiles[p] = cv;
+      }
+    }
+    return flameTiles[ph];
+  }
+
+  S.firepit = {
+    label: 'Campfire',
+    init: function (st) { if (!st.s.toast) st.s.toast = 0; },
+    prompt: function (st) {
+      if (!(G().state.builds || {}).camp) return 'Pitch the tent first!';
+      if (!st.s.lit) return 'Light the campfire';
+      if (st.s.toast > 0) return 'Toasting...';
+      if (W.hands.has('stick')) return 'Toast a marshmallow';
+      if (W.hands.has('smore')) return 'Eat it by the fire!';
+      var night = G().state.lights[st.room] === false;
+      return night ? 'Cosy fire (grab a stick!)' : 'Cosy fire · [X] settle down for the night';
+    },
+    /* X by a lit fire draws the night in — and pulls it back at dawn. */
+    onBack: function (st) {
+      if (!st.s.lit) return false;
+      var L = G().state.lights;
+      var night = L[st.room] === false;
+      L[st.room] = night ? true : false;
+      if (night) {
+        say('Morning already! Look at that sunshine.');
+      } else {
+        say('Everyone settle in... look at all those stars.', '#9FE8C4');
+        W.sceneHouse.npcs.forEach(function (n) {
+          if (n.friendKey) n.says('oooooh...', 3);
+        });
+      }
+      if (W.audio) W.audio.play(night ? 'blip' : 'lullaby');
+      return true;
+    },
+    act: function (st) {
+      // the marshmallows are a campsite thing, not a random-fire thing
+      if (!(G().state.builds || {}).camp) {
+        say('Pitch the tent at the tent spot first — then we can have a fire.');
+        return;
+      }
+      if (!st.s.lit) {
+        st.s.lit = true;
+        say('Whoosh! A proper campfire. [X] settles everyone down for the night.');
+        W.fx.sparkle(st.x + st.w / 2, st.y, 12, 60);
+        G().first('campfire', 'First campfire!');
+        if (W.audio) W.audio.play('cook');
+        return;
+      }
+      if (st.s.toast > 0) return;
+      if (W.hands.has('smore')) { eatSmore(st); return; }
+      if (!W.hands.has('stick')) { say('There are sticks by the fire — grab one!'); return; }
+      st.s.toast = 3;
+      say('Hold it steady... not too close...');
+      // friends toast their own alongside
+      W.sceneHouse.npcs.forEach(function (n) {
+        if (!n.friendKey) return;
+        if (Math.hypot(n.x - st.x, n.y - st.y) > 240) return;
+        n.mode = 'goto';
+        n.data.tx = st.x + st.w / 2 + (Math.random() - 0.5) * 120;
+        n.data.ty = st.y + st.h + 30;
+        n.data.tol = 12;
+        n.says('Me too! Me too!', 2.6);
+      });
+    },
+    update: function (st, dt) {
+      if (!(st.s.toast > 0)) return;
+      st.s.toast -= dt;
+      if (Math.random() < dt * 6) W.fx.sparkle(st.x + st.w / 2, st.y + 6, 1, 30);
+      if (st.s.toast > 0) return;
+      st.s.toast = 0;
+      W.hands.hold('smore');
+      say("Golden brown! One S'more, ready to eat.");
+      if (W.audio) W.audio.play('ding');
+    },
+    drawOn: function (ctx, st) {
+      if (!st.s.lit) return;
+      var ph = Math.floor(W.game.t * 9) % 3;
+      ctx.drawImage(flameTile(ph), st.x + st.w / 2 - 45, st.y - 46);
+      if (Math.random() < 0.08) W.fx.sparkle(st.x + st.w / 2 + (Math.random() - 0.5) * 20, st.y - 30, 1, 20);
+    }
+  };
+
+  function eatSmore(st) {
+    W.hands.drop();
+    say("Mmmm! Sticky, melty, perfect.");
+    W.fx.hearts(W.sceneHouse.player.x, W.sceneHouse.player.y - 80, 5);
+    G().first('smore', "First s'more!");
+    W.sceneHouse.npcs.forEach(function (n) {
+      if (n.friendKey && Math.hypot(n.x - st.x, n.y - st.y) < 240) n.says('Yum!', 2.2);
+    });
+    if (W.audio) { W.audio.play('chomp'); W.audio.play('aaah'); }
+  }
+
+  S.stickPile = {
+    label: 'Sticks',
+    prompt: function () {
+      if (!(G().state.builds || {}).camp) return 'Sticks (pitch the tent first)';
+      if (W.hands.has('stick')) return 'Already got one!';
+      return 'Take a marshmallow stick';
+    },
+    act: function (st) {
+      if (!(G().state.builds || {}).camp) { say('Let us set up camp first!'); return; }
+      if (W.hands.has('stick')) { say('One stick is plenty.'); return; }
+      var bumped = W.hands.hold('stick');
+      if (bumped) W.dropped.dropItem(W.sceneHouse.name, bumped, st.x + 8, st.y + 40);
+      say('A stick with a marshmallow on the end. Now for the fire!');
+    }
+  };
+
+  /* Pitching the tent is a one-off — after that it is simply there. */
+  S.campSetup = {
+    label: 'Pitch a Tent',
+    prompt: function (st) {
+      if ((G().state.builds || {}).camp) return 'A cosy camp';
+      return st.s.pitch > 0 ? 'Pitching...' : 'Pitch the tent';
+    },
+    act: function (st) {
+      if ((G().state.builds || {}).camp) { say('Home from home!'); return; }
+      if (st.s.pitch > 0) return;
+      st.s.pitch = 2.2;
+      say('Poles in... canvas over... nearly...');
+      if (W.audio) W.audio.play('clack');
+    },
+    update: function (st, dt) {
+      if (!(st.s.pitch > 0)) return;
+      st.s.pitch -= dt;
+      if (st.s.pitch > 0) return;
+      st.s.pitch = 0;
+      G().state.builds.camp = true;
+      W.requestRebuild('mountain');
+      G().showBanner('CAMP SET UP!', 'Sleep under the stars!');
+      if (W.audio) W.audio.play('win');
+    }
+  };
+
+  // ------------------------------------------------------- builder jobs
+
+  /* Shared: a hammering bar, then whatever the job produces. */
+  function buildJob(st, secs, line) {
+    st.s.building = secs;
+    say(line);
+    if (W.audio) W.audio.play('hammer');
+  }
+
+  S.swingRide = {
+    label: 'Swings',
+    locked: function () { return !(G().state.builds || {}).swing && !W.can('build'); },
+    prompt: function (st) {
+      if (st.s.building > 0) return 'Fixing it up...';
+      if (!(G().state.builds || {}).swing) {
+        return W.can('build') ? 'Fix the swing set!' : 'Broken (needs a Builder)';
+      }
+      return 'Swing!';
+    },
+    act: function (st) {
+      var G2 = G();
+      if (st.s.building > 0) return;
+      if (!(G2.state.builds || {}).swing) {
+        if (!W.can('build')) { say('This is a job for Builder Bobby.'); return; }
+        buildJob(st, 2.6, 'Bang bang! Let us get this swinging again.');
+        return;
+      }
+      W.sceneHouse.mount('swing', st);
+    },
+    update: function (st, dt) {
+      if (st.s.building > 0) {
+        st.s.building -= dt;
+        if (Math.random() < 0.5) W.fx.dust(st.x + 20 + Math.random() * 80, st.y + 10, 1);
+        if (st.s.building <= 0) {
+          G().state.builds.swing = true;
+          W.requestRebuild('park');
+          G().showBanner('SWINGS FIXED!', 'Room for two!');
+          G().first('fixswing', 'First repair!');
+          if (W.audio) W.audio.play('win');
+        }
+      }
+    }
+  };
+
+  S.seesawRide = {
+    label: 'See-Saw',
+    locked: function () { return !(G().state.builds || {}).seesaw && !W.can('build'); },
+    prompt: function (st) {
+      if (st.s.building > 0) return 'Building...';
+      if (!(G().state.builds || {}).seesaw) {
+        return W.can('build') ? 'Build a see-saw!' : 'An empty spot (needs a Builder)';
+      }
+      return W.sceneHouse.follower() ? 'See-saw together!' : 'Needs a friend on the other end';
+    },
+    act: function (st) {
+      var G2 = G();
+      if (st.s.building > 0) return;
+      if (!(G2.state.builds || {}).seesaw) {
+        if (!W.can('build')) { say('I would need the Builder outfit for this.'); return; }
+        buildJob(st, 2.6, 'One plank, one log — see-saw!');
+        return;
+      }
+      if (!W.sceneHouse.follower()) {
+        say('A see-saw needs two! Say Trix to a friend and bring them along.');
+        return;
+      }
+      W.sceneHouse.mount('seesaw', st);
+    },
+    update: function (st, dt) {
+      if (st.s.building > 0) {
+        st.s.building -= dt;
+        if (Math.random() < 0.5) W.fx.dust(st.x + 30 + Math.random() * 80, st.y + 10, 1);
+        if (st.s.building <= 0) {
+          G().state.builds.seesaw = true;
+          W.requestRebuild('park');
+          G().showBanner('SEE-SAW BUILT!', 'Bring a friend!');
+          if (W.audio) W.audio.play('win');
+        }
+      }
+    }
+  };
+
+  /* A den in the living room, so the pom-poms can move in. */
+  S.critterBox = {
+    label: 'Critter Box',
+    locked: function () { return !(G().state.builds || {}).critterBox && !W.can('build'); },
+    prompt: function (st) {
+      if (st.s.building > 0) return 'Building...';
+      if (!(G().state.builds || {}).critterBox) {
+        return W.can('build') ? 'Build a critter box' : 'A cosy corner (needs a Builder)';
+      }
+      return 'Peek inside';
+    },
+    act: function (st) {
+      var G2 = G();
+      if (st.s.building > 0) return;
+      if (!(G2.state.builds || {}).critterBox) {
+        if (!W.can('build')) { say('Builder Bobby could make something here.'); return; }
+        buildJob(st, 2.4, 'A snug little house for the fluffiest friends.');
+        return;
+      }
+      var here = W.sceneHouse.npcs.filter(function (n) {
+        return n.friendKey && n.friendKey.indexOf('critter') === 0;
+      }).length;
+      say(here ? 'Three little snoozes. Sweet dreams, pom-poms.'
+               : 'Empty for now — the critters are out playing.');
+      W.fx.hearts(st.x + st.w / 2, st.y - 40, 3);
+    },
+    update: function (st, dt) {
+      if (st.s.building > 0) {
+        st.s.building -= dt;
+        if (st.s.building <= 0) {
+          var G3 = G();
+          G3.state.builds.critterBox = true;
+          if (!G3.state.friendRooms) G3.state.friendRooms = {};
+          ['critterA', 'critterB', 'critterC'].forEach(function (k) {
+            if (G3.state.party.indexOf(k) < 0) G3.state.friendRooms[k] = 'living';
+          });
+          W.requestRebuild('living');
+          G3.showBanner('CRITTER BOX!', 'The pom-poms have moved in!');
+          if (W.audio) W.audio.play('cheer');
+        }
+      }
+    }
+  };
+
+  /* The site: each machine owns one stage, so there is never a menu to
+   * read — walk to the right machine and it does its job. */
+  var STAGE_JOB = {
+    bulldozer: { stage: 0, verb: 'Clear the lot',    line: 'Vrrrooom! Push all this junk away.' },
+    mixer:     { stage: 1, verb: 'Pour the floor',   line: 'Slosh! One concrete slab coming up.' },
+    crane:     { stage: 2, verb: 'Lift the walls',   line: 'Up she goes... steady... steady...' },
+    toolbox:   { stage: 3, verb: 'Put the roof on',  line: 'Bang bang bang! Nearly a home.' }
+  };
+  var STAGE_DONE = ['The lot is clear!', 'The floor is set!', 'Walls up!', 'HOUSE COMPLETE!'];
+
+  S.machine = {
+    label: 'Machine',
+    // `undefined <= 0` is false, which once ran the whole build every frame
+    init: function (st) { if (!st.s.run) st.s.run = 0; },
+    locked: function () { return !W.can('build'); },
+    prompt: function (st) {
+      var job = STAGE_JOB[st.machine];
+      if (st.s.run > 0) return job.verb + '...';
+      var stage = (G().state.builds || {}).friendHouse || 0;
+      if (!W.can('build')) return 'A big ' + st.machine + ' (needs a Builder)';
+      if (stage >= 4) return 'All finished!';
+      if (stage !== job.stage) return 'Not this one yet';
+      return job.verb;
+    },
+    act: function (st) {
+      var G2 = G();
+      if (st.s.run > 0) return;
+      if (!W.can('build')) { say('Only Builder Bobby may drive this.'); return; }
+      var stage = G2.state.builds.friendHouse || 0;
+      var job = STAGE_JOB[st.machine];
+      if (stage >= 4) { say('The house is done! Try the wrecking ball...'); return; }
+      if (stage !== job.stage) {
+        say(['First clear the lot with the bulldozer!',
+             'Now the mixer, for the floor.',
+             'Time for the crane and the walls.',
+             'The toolbox! Roof time.'][stage]);
+        return;
+      }
+      // Bobby climbs in and drives it over to the site himself
+      st.s.run = 5.4;
+      say(job.line);
+      W.sceneHouse.driveMachine(st, st.machine, function () { finishStage(st); });
+    },
+    update: function (st, dt) {
+      if (!(st.s.run > 0)) return;
+      st.s.run -= dt;
+      if (st.s.run > 0) return;
+      st.s.run = 0;
+    }
+  };
+
+  /* One stage of the friends' house, banked when the machine finishes. */
+  function finishStage(st) {
+      var G2 = G();
+      st.s.run = 0;
+      G2.state.builds.friendHouse = (G2.state.builds.friendHouse || 0) + 1;
+      var stage = G2.state.builds.friendHouse;
+      W.requestRebuild('site');
+      W.fx.sparkle(480, 300, 14, 120);
+      if (stage >= 4) {
+        if (!G2.state.friendRooms) G2.state.friendRooms = {};
+        ['panda', 'yuna'].forEach(function (k) {
+          if (G2.state.party.indexOf(k) < 0) G2.state.friendRooms[k] = 'friendhouse';
+        });
+        if (W.rebuildMap) W.rebuildMap('neighborhood');
+        G2.showBanner('HOUSE COMPLETE!', 'Panda and Yuna move in!');
+        G2.first('house', 'First house built!');
+        if (W.audio) W.audio.play('win');
+      } else {
+        G2.showBanner(STAGE_DONE[stage - 1], 'Stage ' + stage + ' of 4');
+        if (W.audio) W.audio.play('ding');
+      }
+  }
+
+  S.wreckingBall = {
+    label: 'Wrecking Ball',
+    init: function (st) { if (!st.s.swing) st.s.swing = 0; },
+    locked: function () { return !W.can('build'); },
+    prompt: function (st) {
+      if (st.s.swing > 0) return 'SMASH!';
+      if (((G().state.builds || {}).friendHouse || 0) < 4) return 'Nothing to knock down (yet!)';
+      return W.can('build') ? 'Knock it all down!' : 'A wrecking ball (needs a Builder)';
+    },
+    act: function (st) {
+      var G2 = G();
+      if (st.s.swing > 0) return;
+      if ((G2.state.builds.friendHouse || 0) < 4) { say('Build the house first!'); return; }
+      if (!W.can('build')) { say('Only Builder Bobby may swing this.'); return; }
+      st.s.swing = 5.4;
+      say('Stand baaaack!');
+      W.sceneHouse.driveMachine(st, 'wreckingBall', function () { smash(st); });
+    },
+    update: function (st, dt) {
+      if (!(st.s.swing > 0)) return;
+      st.s.swing -= dt;
+      if (st.s.swing > 0) return;
+      st.s.swing = 0;
+    }
+  };
+
+  function smash(st) {
+      var G2 = G();
+      st.s.swing = 0;
+      G2.state.builds.friendHouse = 0;
+      if (!G2.state.friendRooms) G2.state.friendRooms = {};
+      ['panda', 'yuna'].forEach(function (k) {
+        if (G2.state.friendRooms[k] === 'friendhouse') G2.state.friendRooms[k] = 'park';
+      });
+      W.requestRebuild('site');
+      if (W.rebuildMap) W.rebuildMap('neighborhood');
+      G2.showBanner('KABOOM!', 'Build it again!');
+      say('MY ROOF! ...again! Do it again!');
+      W.fx.dust(470, 360, 12);
+      if (W.audio) W.audio.play('boom');
+  }
+
+  /* The front door only exists once there is a house around it. */
+  S.houseDoor = {
+    label: 'Front Door',
+    prompt: function () {
+      var stage = (G().state.builds || {}).friendHouse || 0;
+      if (stage >= 4) return 'Knock on the door';
+      return ['An empty lot', 'A bare slab', 'Four walls, no roof', 'Nearly there!'][stage];
+    },
+    act: function () {
+      if (((G().state.builds || {}).friendHouse || 0) < 4) { say('Not finished yet!'); return; }
+      G().fadeTo('house', { room: 'friendhouse' });
+    }
+  };
+
   // ------------------------------------------------------------- plumbing
 
   /* Build the live station list for a room, wiring each to its persistent
@@ -1083,7 +1606,9 @@
       return { text: 'Need: ' + suit.name, locked: true };
     }
     var text = d.prompt ? d.prompt(st) : (st.label || d.label || 'Use');
-    return { text: text, locked: false };
+    // some stations are only PARTLY suit-gated (the tree: building needs the
+    // hard hat, climbing the finished treehouse does not)
+    return { text: text, locked: d.locked ? !!d.locked(st) : false };
   };
 
   W.stationAct = function (st, player) {

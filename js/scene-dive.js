@@ -31,6 +31,67 @@
     }
   };
 
+  /* Four kinds of shell to find and fill the treasure book with. */
+  var SHELLS = ['scallop', 'conch', 'starshell', 'pearlshell'];
+  var shellTiles = {};
+
+  function shellTile(kind) {
+    if (!shellTiles[kind]) {
+      var cv = C.offscreen(44, 44);
+      var g = cv.getContext('2d');
+      g.translate(22, 22);
+      var col = { scallop: '#F2C9D8', conch: '#F5D9A8', starshell: '#B8CAE8', pearlshell: '#E8EFE4' }[kind];
+      if (kind === 'starshell') {
+        C.star(g, 0, 0, 15, col, 'sh' + kind);
+        C.arc(g, 0, 0, 15, 0, Math.PI * 2, { seed: 'shr' + kind, stroke: PAL.outline, lw: 2, wob: 1.4, passes: 1, strokeAlpha: 0.5 });
+      } else if (kind === 'conch') {
+        C.poly(g, [[-13, 10], [0, -14], [13, 10]], {
+          seed: 'sh' + kind, fill: col, stroke: PAL.outline, lw: 2.4, hatch: 3, wash: 0.8
+        });
+        C.arc(g, 0, 2, 8, Math.PI, Math.PI * 2, { seed: 'sh2' + kind, stroke: PAL.outline, lw: 2, wob: 0.7 });
+      } else {
+        C.arc(g, 0, 8, 15, Math.PI, Math.PI * 2, {
+          seed: 'sh' + kind, fill: col, stroke: PAL.outline, lw: 2.4, hatch: 3, wash: 0.8
+        });
+        for (var r = -2; r <= 2; r++) {
+          C.line(g, 0, 8, r * 6, -6, { seed: 'sr' + kind + r, stroke: PAL.outline, lw: 1.6, wob: 0.5, passes: 1 });
+        }
+      }
+      shellTiles[kind] = cv;
+    }
+    return shellTiles[kind];
+  }
+
+  var octoTiles = null;
+  function octoTile(ph) {
+    if (!octoTiles) {
+      octoTiles = [];
+      for (var p = 0; p < 2; p++) {
+        var cv = C.offscreen(150, 130);
+        var g = cv.getContext('2d');
+        g.translate(75, 70);
+        for (var a = 0; a < 6; a++) {
+          var wob = (p ? 1 : -1) * (a % 2 ? 10 : -10);
+          C.arc(g, -46 + a * 18, 26, 22, Math.PI * 0.05, Math.PI * 0.95, {
+            seed: 'oa' + a + p, stroke: '#C97FB0', lw: 8, wob: 1.4 + wob * 0.02
+          });
+        }
+        C.ellipse(g, 0, -4, 40, 36, {
+          seed: 'ob' + p, fill: '#D98FC4', stroke: PAL.outline, lw: 3.2, hatch: 3.6, wash: 0.78
+        });
+        C.dot(g, -13, -8, 6, PAL.white, 'oe1' + p);
+        C.dot(g, 13, -8, 6, PAL.white, 'oe2' + p);
+        C.dot(g, -12, -7, 3, PAL.outline, 'op1' + p);
+        C.dot(g, 14, -7, 3, PAL.outline, 'op2' + p);
+        C.arc(g, 0, 6, 9, Math.PI * 0.15, Math.PI * 0.85, {
+          seed: 'om' + p, stroke: PAL.outline, lw: 2.2, wob: 0.7
+        });
+        octoTiles[p] = cv;
+      }
+    }
+    return octoTiles[ph];
+  }
+
   var bgs = {}, sharkTile = null;
 
   function buildBg(key) {
@@ -151,9 +212,30 @@
       S.sharks.push({
         x: 500 + rnd() * 380, y: 100 + rnd() * 400,
         vx: 0, vy: 0, face: 1, back: 0,
-        speed: 52 + i * 9
+        // one real chaser; the others cruise, so a small pilot can think
+        speed: [70, 42, 46][i % 3]
       });
     }
+    // three shells per site per day, in the same spots all day long
+    var srnd = W.mulberry32(W.hash('shells' + S.key + W.game.state.day));
+    // a bitmask of taken shells, so the RIGHT ones stay gone on a revisit
+    var got = W.game.state.treasures['shells:' + S.key + ':' + W.game.state.day] || 0;
+    if (got === true) got = 7;               // a pre-bitmask save: call it all three
+    S.shells = [];
+    for (var sc = 0; sc < 3; sc++) {
+      var sx0, sy0, tries = 0;
+      do {
+        sx0 = 120 + srnd() * 740;
+        sy0 = 100 + srnd() * 420;
+        tries++;
+      } while (hitsWall(sx0, sy0) && tries < 30);
+      S.shells.push({ x: sx0, y: sy0, idx: sc,
+                      kind: SHELLS[Math.floor(srnd() * SHELLS.length)],
+                      taken: !!(got & (1 << sc)) });
+    }
+    S.octopus = S.key === 'WRECK' ? { x: 160, y: 460, t: 0 } : null;
+    S.tradedToday = W.game.state.treasures['octo:' + W.game.state.day] === true;
+
     if (W.drawSub.warm) W.drawSub.warm();
     W.say(S.taken ? 'Just fish in here now... and sharks!'
                   : 'The crystal is deep inside. Watch for sharks!', '#8FD0EE');
@@ -227,9 +309,50 @@
     if (entryDist > 95) S.movedAway = true;      // spawn == exit; don't offer
     S.atExit = S.movedAway && entryDist < 62;    // "Leave" before they even move
 
+    // ---- shells and the octopus
+    S.atShell = null;
+    for (var sq = 0; sq < S.shells.length; sq++) {
+      var shl = S.shells[sq];
+      if (shl.taken) continue;
+      if (Math.hypot(S.x - shl.x, S.y - shl.y) < 48) { S.atShell = shl; break; }
+    }
+    S.atOcto = !!(S.octopus && Math.hypot(S.x - S.octopus.x, S.y - S.octopus.y) < 90);
+    if (S.octopus) S.octopus.t += dt;
+
+    if (W.input.hit('talk') && S.atOcto) {
+      W.say(['Blub! Hello, little sub.', 'Bloop bloop! *waves four arms*',
+             'Trix trix, says the octopus.'][Math.floor(Math.random() * 3)], '#D98FC4');
+      W.fx.hearts(S.octopus.x, S.octopus.y - 60, 3);
+    }
+
     if (W.input.hit('act')) {
       if (W.dialogue.skip()) { /* consumed */ }
-      else if (S.atCrystal) {
+      else if (S.atShell) {
+        S.atShell.taken = true;
+        var key = 'shells:' + S.key + ':' + G.state.day;
+        var mask = G.state.treasures[key];
+        if (mask === true) mask = 7;
+        G.state.treasures[key] = (mask || 0) | (1 << S.atShell.idx);
+        G.state.shells = (G.state.shells || 0) + 1;
+        G.state.shellsFound[S.atShell.kind] = (G.state.shellsFound[S.atShell.kind] || 0) + 1;
+        W.fx.sparkle(S.atShell.x, S.atShell.y, 10, 50);
+        W.say('A ' + S.atShell.kind + '! For the treasure book.', '#F2C9D8');
+        G.first('shell', 'First seashell!');
+        if (W.audio) W.audio.play('chime');
+      } else if (S.atOcto && !S.tradedToday) {
+        if ((G.state.shells || 0) < 1) {
+          W.say('The octopus points at your empty net. Find a shell first!');
+        } else {
+          G.state.shells--;
+          S.tradedToday = true;
+          G.state.treasures['octo:' + G.state.day] = true;
+          var traded = W.findCrystal('octo' + G.state.day);
+          W.fx.sparkle(S.octopus.x, S.octopus.y - 40, 18, 90);
+          W.say('A shell for a ' + traded.name + '! What a deal.', traded.color);
+          G.first('cry-' + traded.name, 'Found a ' + traded.name + '!');
+          if (W.audio) W.audio.play('chime');
+        }
+      } else if (S.atCrystal) {
         S.hasCrystal = true;
         W.fx.sparkle(cr[0], cr[1], 18, 90);
         W.say('Got it! Now get OUT!', '#8FD0EE');
@@ -276,6 +399,19 @@
       ctx.drawImage(S.starTile, cr[0] + 9, cr[1] - 25);
     }
 
+    // shells waiting to be found
+    for (var sq2 = 0; sq2 < S.shells.length; sq2++) {
+      var shl2 = S.shells[sq2];
+      if (shl2.taken) continue;
+      var sway = Math.sin(S.t * 1.6 + sq2) * 3;
+      ctx.drawImage(shellTile(shl2.kind), shl2.x - 22, shl2.y - 22 + sway);
+    }
+
+    // the octopus, waving
+    if (S.octopus) {
+      ctx.drawImage(octoTile(Math.floor(S.t * 1.6) % 2), S.octopus.x - 75, S.octopus.y - 70);
+    }
+
     // sharks
     var st2 = shark();
     for (var i = 0; i < S.sharks.length; i++) {
@@ -310,8 +446,20 @@
       size: 22, align: 'center', color: PAL.white, outline: 3.4, outlineColor: PAL.outline, seed: 'dn' + S.key
     });
 
-    if (S.atCrystal) W.drawPrompt(ctx, S.x, S.y + 56, 'Grab the crystal!', S.t);
+    if (S.atShell) W.drawPrompt(ctx, S.x, S.y + 56, 'Collect the shell!', S.t);
+    else if (S.atOcto) {
+      W.drawPrompt(ctx, S.x, S.y + 56,
+        S.tradedToday ? 'The octopus waves back' : 'Trade a shell for a crystal',
+        S.t, S.tradedToday, 'Z', 'A', 'say hello');
+    }
+    else if (S.atCrystal) W.drawPrompt(ctx, S.x, S.y + 56, 'Grab the crystal!', S.t);
     else if (S.atExit) W.drawPrompt(ctx, S.x, S.y + 56, S.hasCrystal ? 'Escape!' : 'Leave', S.t);
+
+    if (G.state.shells) {
+      C.textCached(ctx, 'Shells: ' + G.state.shells, 20, 70, {
+        size: 18, color: '#F2C9D8', outline: 3, outlineColor: PAL.outline, seed: 'shc' + G.state.shells
+      });
+    }
 
     C.textCached(ctx, 'arrows swim  ·  Z grab  ·  X leave', 480, 578, {
       size: 15, align: 'center', color: PAL.white, outline: 3, outlineColor: PAL.outline, seed: 'dh'

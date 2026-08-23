@@ -140,7 +140,9 @@
       dir: this.dir, hopT: this.hopT,
       moving: this.moving || this.jumpT > 0,
       t: t, scale: this.scale,
-      noShadow: jl > 0
+      noShadow: jl > 0,
+      held: this.isPlayer ? W.game.state.held : null,
+      neck: this.isPlayer && W.neckStretch ? W.neckStretch() : 0
     });
     if (jl > 0) {
       // a separate, shrinking shadow while airborne

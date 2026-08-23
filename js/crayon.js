@@ -338,24 +338,26 @@
               (o.weight || 'bold') + '|' + (o.shadow ? 1 : 0);
     var tile = textTiles[key];
     if (!tile) {
-      var w = Math.ceil(C.textWidth(ctx, str, size, o.weight)) + 18;
-      var h = Math.ceil(size * 2.1);
+      // Crayon glyphs wobble and carry an outline, so they spill past the
+      // measured width — the old 9px margin clipped the last letter.
+      var w = Math.ceil(C.textWidth(ctx, str, size, o.weight)) + Math.ceil(size * 1.6) + 12;
+      var h = Math.ceil(size * 2.4);
       var cv = C.offscreen(Math.max(1, w), h);
       var g = cv.getContext('2d');
-      var base = Math.round(size * 1.35);
-      C.text(g, str, 9, base, {
+      var base = Math.round(size * 1.45);
+      C.text(g, str, Math.round(size * 0.8) + 6, base, {
         size: size, color: o.color, outline: o.outline, outlineColor: o.outlineColor,
         weight: o.weight, shadow: o.shadow, seed: o.seed || str, wob: o.wob
       });
-      tile = textTiles[key] = { img: cv, w: w, base: base };
+      tile = textTiles[key] = { img: cv, w: w, base: base, pad: Math.round(size * 0.8) + 6 };
       var tk = Object.keys(textTiles);
       if (tk.length > 200) delete textTiles[tk[0]];
     }
-    var dx = x - 9;
+    var dx = x - tile.pad;
     if (o.align === 'center') dx = x - tile.w / 2;
-    else if (o.align === 'right') dx = x - tile.w + 9;
+    else if (o.align === 'right') dx = x - tile.w + tile.pad;
     ctx.drawImage(tile.img, Math.round(dx), Math.round(y - tile.base));
-    return tile.w - 18;
+    return tile.w - tile.pad * 2;
   };
 
   C.textWidth = function (ctx, str, size, weight) {

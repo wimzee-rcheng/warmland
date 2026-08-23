@@ -16,7 +16,7 @@
     { kind: 'flower',   name: 'Flower Pot',  cost: 3, tint: '#E8A0B4' },
     { kind: 'nightlight', name: 'Nightlight', cost: 4 }
   ];
-  var ROOM_CHOICES = ['living', 'bedroom', 'treehouse'];
+  var ROOM_CHOICES = ['living', 'bedroom', 'treehouse', 'backyard', 'friendhouse'];
 
   var S = { opaque: true, t: 0, sel: 0, roomSel: 0, stagePick: 'item', bg: null };
 
@@ -40,8 +40,15 @@
       return;
     }
     var n = S.stagePick === 'item' ? CATALOG.length : ROOM_CHOICES.length;
-    if (W.input.hit('left'))  { if (S.stagePick === 'item') S.sel = (S.sel + n - 1) % n; else S.roomSel = (S.roomSel + n - 1) % n; }
-    if (W.input.hit('right')) { if (S.stagePick === 'item') S.sel = (S.sel + 1) % n; else S.roomSel = (S.roomSel + 1) % n; }
+    var item = S.stagePick === 'item';
+    var cur = item ? S.sel : S.roomSel;
+    // The catalog is a 3-wide grid, so up/down must jump a whole row —
+    // without it the bottom row was unreachable by arrow keys.
+    if (W.input.hit('left'))  cur = (cur + n - 1) % n;
+    if (W.input.hit('right')) cur = (cur + 1) % n;
+    if (W.input.hit('down'))  cur = Math.min(n - 1, cur + (item ? 3 : 1));
+    if (W.input.hit('up'))    cur = Math.max(0, cur - (item ? 3 : 1));
+    if (item) S.sel = cur; else S.roomSel = cur;
 
     if (W.input.hit('act')) {
       if (W.dialogue.skip()) return;
@@ -94,7 +101,7 @@
     }
 
     if (S.stagePick === 'room') {
-      C.roundRect(ctx, 230, 200, 500, 200, 18, {
+      C.roundRect(ctx, 230, 200, 500, 240, 18, {   // tall enough for five rooms
         seed: 'dsr', fill: PAL.white, stroke: PAL.sun, lw: 5, hatch: 5, wash: 0.94, fillAlpha: 0.2
       });
       C.textCached(ctx, 'Put it where?', 480, 246, {

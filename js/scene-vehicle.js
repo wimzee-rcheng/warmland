@@ -55,7 +55,9 @@
     for (var i = 0; i < S.map.pois.length; i++) {
       var p = S.map.pois[i];
       if (Math.hypot(S.x - p.x, S.y - p.y) < p.r + 14) {
-        S.poiLocked = !!(p.only && p.only !== S.vehicle);
+        // a pad can want a particular vehicle, a particular outfit, or both
+        S.poiLocked = !!(p.only && p.only !== S.vehicle) ||
+                      !!(p.needs && !W.can(p.needs));
         return p;
       }
     }
@@ -65,8 +67,11 @@
   function arrive(p) {
     var G = W.game;
     if (S.poiLocked) {
-      var need = W.VEHICLES[p.only];
-      W.say('Only the ' + need.name + ' can go to ' + p.label + '.');
+      if (p.only && p.only !== S.vehicle) {
+        W.say('Only the ' + W.VEHICLES[p.only].name + ' can go to ' + p.label + '.');
+      } else {
+        W.say('That is for ' + W.suitFor(p.needs).name + '! Try the magic closet.');
+      }
       return;
     }
     if (p.kind === 'lake') {
@@ -82,6 +87,9 @@
       G.fadeTo('dive', { site: p.label });
       return;
     }
+    if (p.to.race) { G.fadeTo('race'); return; }
+    if (p.to.mars) { G.fadeTo('mars'); return; }
+    if (p.to.snow) { G.fadeTo('snow'); return; }
     if (p.to.room) { G.fadeTo('house', { room: p.to.room }); return; }
     if (p.to.mission) { G.fadeTo('mission', { mission: p.to.mission }); return; }
     if (p.to.map) {
@@ -109,11 +117,21 @@
     if (!S.lock) { var a = W.input.axis(); ax = a[0]; ay = a[1]; }
 
     var v = S.v;
-    // the car belongs on the roads — grass is slow going
+    // the car belongs on the roads — grass is slow going, and bumpy with it
     var grip = 1;
+    S.offRoad = false;
     if (v.ground && S.mapId === 'neighborhood') {
       var onRoad = Math.abs(S.y - 690) < 42 || Math.abs(S.x - 980) < 42;
-      if (!onRoad) grip = 0.45;
+      if (!onRoad) { grip = 0.45; S.offRoad = true; }
+    }
+    S.speed = Math.hypot(S.vx, S.vy);
+    if (S.offRoad && S.speed > 40) {
+      S.rattleIn = (S.rattleIn || 0) - dt;
+      if (S.rattleIn <= 0) {
+        S.rattleIn = 0.24;
+        W.fx.dust(S.x - S.vx * 0.12, S.y + 16, 2);
+        if (W.audio) W.audio.play('rattle');
+      }
     }
     S.vx += ax * v.accel * grip * dt;
     S.vy += ay * v.accel * grip * dt;
@@ -176,6 +194,8 @@
 
     var sx = S.x - camX, sy = S.y - camY;
     var bob = Math.sin(S.t * 2.2) * (S.v.ground ? 1 : 5);
+    // rough ground judders the whole car
+    if (S.offRoad && S.speed > 40) bob += Math.sin(S.t * 22) * 3.5;
 
     var flip = S.v.flips && S.face < 0;
     ctx.save();
@@ -195,6 +215,23 @@
     });
     ctx.restore();
     if (S.v.glass) S.v.glass(ctx, 0, 0, 1);
+    // going FAST should feel like going fast
+    if (S.v.ground && S.speed > 320) {
+      var dirx2 = S.vx >= 0 ? -1 : 1;
+      ctx.save();
+      ctx.globalAlpha = Math.min(0.8, (S.speed - 320) / 70);
+      ctx.strokeStyle = W.PAL.white;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      for (var ln = 0; ln < 4; ln++) {
+        var ly = -18 + ln * 13, lx = dirx2 * (46 + ((ln * 7 + Math.floor(S.t * 60)) % 26));
+        ctx.beginPath();
+        ctx.moveTo(lx, ly);
+        ctx.lineTo(lx + dirx2 * 22, ly);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
 
     // the pet rides shotgun
     if (G.state.pet) {
@@ -230,10 +267,13 @@
     }
 
     if (S.poi) {
-      var label = S.poiLocked ? 'Needs the ' + W.VEHICLES[S.poi.only].name :
+      var label = S.poiLocked
+                  ? (S.poi.only && S.poi.only !== S.vehicle
+                      ? 'Needs the ' + W.VEHICLES[S.poi.only].name
+                      : 'Needs ' + W.suitFor(S.poi.needs).name) :
                   S.poi.kind === 'lake' ? 'Dive in' :
                   S.poi.kind === 'dive' ? 'Explore the ' + S.poi.label.toLowerCase() :
-                  'Stop at ' + S.poi.label;
+                  'Stop at ' + (W.poiLabel ? W.poiLabel(S.poi) : S.poi.label);
       W.drawPrompt(ctx, sx, sy + 74, label, S.t, S.poiLocked);
     }
 

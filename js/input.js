@@ -8,7 +8,9 @@
 
   var MAP = {
     ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right',
-    KeyW: 'up', KeyS: 'down', KeyA: 'left', KeyD: 'right',
+    // A is the TALK key now — social actions used to share Z with the world,
+    // so a friend standing near your boba stole the drink prompt.
+    KeyA: 'talk',
     KeyZ: 'act', Enter: 'act',
     Space: 'jump',
     ShiftLeft: 'run', ShiftRight: 'run',

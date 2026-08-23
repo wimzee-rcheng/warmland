@@ -22,8 +22,9 @@ open index.html
 | Arrow keys | Hop around |
 | **Shift** (hold) | Run |
 | **Space** | Jump |
-| `Z` / Enter | Do things: interact, talk, serve, shoot, drink, drop |
-| `X` / Esc | Stop things: say Dee to a follower, clock off a job, flee a mission, leave a dive, close a book |
+| `Z` / Enter | Do things: use furniture, pick up, drink, drop, shoot |
+| `A` | Talk to people: say Trix, chat, give a gift, pet the pup, call everyone to dinner |
+| `X` / Esc | Stop things: say Dee to a follower, clock off a job, hop off a ride, flee a mission, leave a dive, close a book |
 | `T` | Transform (Mech only: robot ↔ boba cart) |
 | `E` | Special event, when one is flashing |
 | `K` | Keena Meena! |
@@ -37,10 +38,15 @@ the wallpaper dots become glow-in-the-dark stars. Sleep in the bed to skip to
 the next morning. Open the window, dig through the toy box, watch TV, read a
 book, flop on the sofa.
 
+**Carrying things** — two places, so you always know what you have. Raw food
+rides on a **tray** (four slots, drawn at the bottom of the screen); everything
+else — a cooked dish, a boba, a fish, the hoe, the watering can, a marshmallow
+stick — is **held in his paws** and drawn above his head. Picking up a second
+hand-item puts the first one down on the floor.
+
 **Cooking** — you need the **Chef** outfit. Take ingredients from the fridge
 (tomato, pepperoni, mushroom, onion, meatball, egg) and dry goods from the
-cabinets next to it (pasta, flour, yeast, sugar). Your basket holds four
-things, drawn as a real wicker basket at the bottom of the screen.
+cabinets next to it (pasta, flour, yeast, sugar).
 
 **Cooking never fails.** Known combos make the real dishes below; any other
 mix makes a wobbly **Bobby's Surprise** — still dinner, still delicious.
@@ -53,11 +59,16 @@ mix makes a wobbly **Bobby's Surprise** — still dinner, still delicious.
 | Pizza | flour, tomato, pepperoni, mushroom |
 | Spaghetti | pasta, tomato, meatball, onion |
 
-Meals work like real meals: cook at the stove → **set the table** (uses a
-clean plate) → **sit on a chair** → **eat** → wash the dishes at the sink →
-put the drying rack away in the cupboard. Plates are counters, never cargo.
+**Dinner is an event.** Cook at the stove, carry the dish to the table and put
+it down — Bobby sits himself in the nearest chair. Then press **`A`** to call
+everyone in the room over (they take the other chairs; the pup waits hopefully
+underneath) and **`Z`** to start eating. The meal plays out bite by bite: the
+food shrinks on the plate, crumbs appear, everyone chomps, somebody says
+"Keena Meena", and it finishes with sparkles and a dirty plate per diner.
+`X` hurries it along if someone is impatient. Then wash up at the sink and put
+the drying rack away in the cupboard. Plates are counters, never cargo.
 The **recipe poster** on the wall opens Bobby's recipe book. A **trash can**
-dumps the whole basket; anything else can be **put down on the floor**
+empties the tray and his paws; anything held can be **put down on the floor**
 anywhere and picked back up later — floor items are saved too.
 
 **Boba is for drinking.** With a boba in hand and nothing else to do, Z drinks
@@ -65,9 +76,10 @@ it — and something wacky happens for a while: giant Bobby, tiny Bobby, disco
 room, or sparkle toots. Random every time.
 
 **Friends** — Panda, Yuna the unicorn, Butterball the butterfly, and three
-quiet critters start at the park. `Z` says **Trix** and they follow you —
-single file, room to room, into vehicles. `Z` again just chats; **`X`** says
-**Dee**, and they'll *live wherever you left them* until you fetch them again.
+quiet critters start at the park. Everyone else in Warmland is a **scribble
+person** — plain crayon humans, so the boba-cup cast stands out. `A` says
+**Trix** and they follow you — single file, room to room, into vehicles. `A`
+again just chats; **`X`** says **Dee**, and they'll *live wherever you left them* until you fetch them again.
 Every friend has a **favorite food** — hand it over for friendship hearts, and
 at three hearts you're best friends with new things to say. Sleep with friends
 in the room (bedroom bags or treehouse tents) for a **SLEEPOVER**.
@@ -82,14 +94,34 @@ fall, rainbows arc and double crystal luck, but colors never darken (day 1 is
 always sunny) — letters in the mailbox, and one-time **NEW!** celebrations
 for every first.
 
-**Around the yard** — a three-plot **garden**: buy seeds at the shop, plant,
-and water as much as you like — each watering grows it a stage, no waiting
-for tomorrow. Harvest vegetables straight into the cooking loop. At the
-park pond, **go fishing** — watch the bobber, strike on the "!", and reel in
-fish for fish dinner (or an old boot, or... a tiny UFO).
+**The backyard** — through the kitchen's back door: a fenced yard with the
+treehouse tree, a tool rack, a garden tap and three plots. The plots start as
+rough **sod**: take the **hoe** from the rack and plow one, plant seeds, then
+take the **watering can**, fill it at the **spigot** (three waterings a fill)
+and water. Each watering grows a stage, no waiting for tomorrow. Harvest
+vegetables straight onto the tray.
 
-**Decorating** — the shop's decor catalog sells rugs, lamps, plants and more;
-pick a room and they appear in it, forever.
+At the park pond, **go fishing** — watch the bobber, strike on the "!", and
+reel in fish for fish dinner (or an old boot, or... a tiny UFO).
+
+**Two shops now.** The **BOBBYBEAR Ice Cream** parlour is Bobby's job — tubs,
+counter, boba machine, tables. The **Warmland Grocery** next door has hanging
+aisle signs for **SEEDS**, **PET FOOD** and **FURNITURE**: seeds for the
+garden, treats for the pup, and the decor catalog.
+
+**Decorating** — the grocery's decor catalog sells rugs, lamps, plants and
+more; arrow keys move through the grid (up/down jump a whole row), pick a room
+and they appear in it, forever.
+
+**Building things** (Builder outfit) — the park **swing set** starts broken
+behind hazard tape: fix it and *two* can swing at once. Build a **see-saw**
+next to it — it refuses to work solo, so bring a friend. Build a **critter
+box** in the living room and the pom-poms move in. And out at the **building
+site** (a pad on the neighbourhood map), four machines each do one stage:
+**bulldozer** clears the lot, **mixer** pours the floor, **crane** lifts the
+walls, **toolbox** puts the roof on — then Panda and Yuna move into their own
+little house, which you can visit. The **wrecking ball** knocks it flat again
+so you can build it all over.
 
 **Outfits** — the magic closet. Each one unlocks something:
 
@@ -117,21 +149,55 @@ fly or drive over the neighbourhood map. Land on a pad to arrive somewhere.
   fill the bedroom **trophy case**, and are collected in **Bobby's treasure
   book** (open the case empty-handed)
 - **SPACE** (UFO only) → free flight over planets and stars; the pulsing
-  **INVASION** pad starts the alien battle, fought from inside the UFO — and
-  stopping the invasion summons **THE MOTHERSHIP** (press `E`) for the real
-  boss fight
+  **INVASION** pad starts the alien battle, fought from inside the UFO —
+  **three waves of ten**. Your hull is patched between waves, and each wave
+  hands you a random power-up (**dual blasters**, **heat-seeking straws** or
+  **boba bombs**). Wave two's saucers carry **shields** that take an extra
+  hit — and you get a shield of your own plus a speed boost. Wave three's are
+  faster. Power-ups **stack**: whatever you earned in wave one is still yours
+  in wave three. Stopping the invasion summons **THE MOTHERSHIP** (press `E`)
+  for the real boss fight
+- **GROCERY** → seeds, pet food and furniture
+- **BUILD SITE** → the building site (it becomes *Panda & Yuna's* once built)
+- **RACE TRACK** (car + Racer) → the Warmland Grand Prix
+- **SNOW RUN** (from the mountain map) → snowboarding
+- **MARS** (from space) → the rover, hide-and-seek and the martians' dome
 
 **The mech mission** — wear the Boba Bear Bot to the park, press `T` to become a
 boba cart, and set up at the pitch. Customers queue; serve five and a **SPECIAL
 EVENT** starts flashing. Press `E` and Megatron turns up, scatters everyone, and
 you fight him with the boba gun.
 
-**The treehouse** — wear the Builder outfit, stand at the big tree outside, and
-build it. Then climb up whenever you like.
+**The treehouse** — wear the Builder outfit, stand at the big tree in the
+backyard, and build it. After that **any** outfit can climb up. Inside it is a
+small plank deck up in the leaves: a knot-hole window, a lantern, bunting, a
+branch through the floor, rope rails along the edge, tents and a telescope.
+Turn the lantern off and the knots become glow-in-the-dark stars.
+
+**Racing** — in the car, the road is fast (and the grass is bumpy, with dust
+and rattles). The **RACE** pad on the map opens the Warmland Grand Prix: three
+laps of an oval against three rivals — any friends following you get karts of
+their own — with a countdown, lap and position counters, and coins for the
+podium.
+
+**Camping** — on Crystal Mountain there is a firepit, a pile of marshmallow
+sticks and a tent spot. Pitch the tent, light the fire, toast a marshmallow
+into a **s'more** (friends gather round and toast their own), and sleep in the
+bag to wake up tomorrow — the whole sky turns into a **starfield** with the
+Little Bear constellation in it.
+
+**Seashells** — three per dive site per day, in four kinds, collected into a
+second page of the treasure book. The **octopus** in the wreck waves back when
+you say hello, and once a day will trade a shell for a crystal.
+
+**Mars** — a new pad in space. Land and you get a **rover** and a game of
+hide-and-seek: three aliens tuck themselves behind craters (different ones
+every day). Find all three and they point you to their dome, where the martian
+ice cream turns Bobby into **Long-Neck Bobby** for a while.
 
 ## Testing
 
-Open `tests.html`. It drives the game with scripted input and checks **546**
+Open `tests.html`. It drives the game with scripted input and checks **981**
 things across movement, cooking, lights, sleep, friends, suits, vehicles, jobs,
 missions, crystals, saving, the consistency of every room and map, plus
 regression suites from a full audit and a gameplay-feel pass (save-guard,
@@ -148,7 +214,14 @@ index.html#scene=vehicle&vehicle=balloon
 index.html#scene=recipes
 index.html#scene=mission&mission=megatron
 index.html#room=park&party=panda,yuna
-index.html#room=outside&treehouse=1
+index.html#room=backyard&treehouse=1
+index.html#room=site&suit=builder&builds=all
+index.html#room=grocery
+index.html#scene=race
+index.html#scene=mars
+index.html#room=mountain&builds=camp
+index.html#scene=snow
+index.html#room=kitchen&tray=tomato,egg&held=boba
 ```
 
 ## How it's put together
@@ -167,11 +240,13 @@ and make the features data for them.
 | Stations | `stations.js` | every piece of interactive furniture, with ability gates |
 | Vehicles | `vehicle.js`, `scene-vehicle.js` | all four vehicles, all four maps |
 | Jobs | `service.js` | the boba cart and the ice cream counter |
-| Combat | `combat.js` | Megatron and the space mission |
+| Combat | `combat.js` | Megatron, the invasion and the mothership |
 
 Supporting files: `crayon.js` (the renderer), `items.js`, `recipes.js`,
 `npc.js`, `suits.js`, `dialogue.js`, `props.js`, `rooms.js`, `save.js`,
-`audio.js`, `game.js`, and one scene file per screen.
+`audio.js`, `game.js`, and one scene file per screen (including
+`scene-race.js` for the Grand Prix, `scene-mars.js` for the red planet and
+`scene-snow.js` for the snow run).
 
 ### Two rules that keep it fast
 
