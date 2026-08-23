@@ -948,6 +948,7 @@
       MM.f.enemies.some(function (e2) { return e2.mother; }));
     var mboss = MM.f.enemies.filter(function (e2) { return e2.mother; })[0];
     mboss.hp = 1;
+    mboss.shield = 0;                 // (its shield is popped by now)
     MM.f.shots.push({ x: mboss.x, y: mboss.y, vx: 0, vy: 0, r: 10, life: 1 });
     MM.lock = 0;
     steps(3);
@@ -1457,6 +1458,30 @@
       G.state.friendRooms.critterA === 'living');
     check('and it is a celebrated first', G.state.firsts.critterhome === true);
 
+    // once home, they SNOOZE at the box instead of wandering the room
+    G.go('house', { room: 'living' }); steps(2); secs(0.4);
+    var boxed = H.npcs.filter(function (n) { return n.friendKey === 'critterA'; })[0];
+    check('the critter waits at its box', !!boxed && boxed.mode === 'hold' &&
+      boxed.data.atBox === true);
+    var bxp = W.ROOMS.living.props.filter(function (p) { return p.kind === 'critterBox'; })[0];
+    check('...right beside it', Math.abs(boxed.x - (bxp.x + 48)) < 60 &&
+      Math.abs(boxed.y - (bxp.y + 58)) < 30,
+      boxed.x.toFixed(0) + ',' + boxed.y.toFixed(0));
+
+    // Trix wakes it up to follow; Dee in ANOTHER room sends it home to the box
+    H.player.x = boxed.x; H.player.y = boxed.y + 30; steps(2);
+    W.dialogue.active = false; press('talk');
+    check('Trix wakes it to follow', G.state.party.indexOf('critterA') >= 0);
+    G.go('house', { room: 'park' }); steps(2); secs(0.4);
+    var pcrit = H.npcs.filter(function (n) { return n.friendKey === 'critterA'; })[0];
+    H.player.x = pcrit.x; H.player.y = pcrit.y + 30; steps(2);
+    W.dialogue.active = false; press('back');
+    check('Dee far from home still sends it to the box',
+      G.state.friendRooms.critterA === 'living', G.state.friendRooms.critterA);
+    secs(4.5); steps(2);
+    check('and it scampers out of the park', !H.npcs.some(function (n) {
+      return n.friendKey === 'critterA'; }));
+
     // the building site: four machines, in order
     G.go('house', { room: 'site' }); steps(2); secs(0.4);
     function machine(kind) {
@@ -1514,13 +1539,20 @@
     var cr3 = machine('crane');
     standAt(cr3); W.dialogue.active = false; press('act');
     check('the crane takes the wheel', !!H.machineCtl && H.machineCtl.kind === 'crane');
+    check('the crane knows where its hook is', !!H.machineCtl.tip &&
+      H.machineCtl.tip[0] > 40, H.machineCtl.tip && H.machineCtl.tip.join(','));
     for (var pn = 0; pn < 3; pn++) {
       H.machineCtl.x = H.machineCtl.stack[0]; H.machineCtl.y = H.machineCtl.stack[1];
       steps(2); W.dialogue.active = false; press('act');
       check('panel ' + (pn + 1) + ' hooks on', H.machineCtl.carrying === true);
-      H.machineCtl.x = 480; H.machineCtl.y = 330; steps(2);
+      // park so the HOOK (not the treads) hangs over the lot
+      H.machineCtl.x = 480 - H.machineCtl.tip[0]; H.machineCtl.y = 330; steps(2);
+      check('the hook hangs over the lot', H.machineCtl.hookOverLot === true,
+        (H.machineCtl.hookX || 0).toFixed(0));
       W.dialogue.active = false; press('act');
-      check('...and lowers onto the lot', H.machineCtl.placed === pn + 1);
+      check('...and the panel rides the cable down', !!H.machineCtl.lower);
+      secs(1.0);
+      check('...landing on the lot', H.machineCtl.placed === pn + 1);
     }
     check('three walls bank the stage', G.state.builds.friendHouse === 3);
     secs(1.2); steps(2);
@@ -1704,7 +1736,7 @@
     F.hero.hp = 2;
     clearWave();
     check('the hull is patched between waves', F.hero.hp === F.hero.maxHp);
-    check('a power-up is handed out', !!F.hero.power, F.hero.power);
+    check('wave one always earns the double blasters', F.hero.power === 'dual');
     check('the next wave is queued', M.breather > 0);
     secs(2.6);
     check('wave two arrives', M.waveNum === 2, M.waveNum);
@@ -1727,13 +1759,12 @@
     check('the second one actually hurts', vic.hp === 1);
 
     F.hero.powers = keptPowers;        // give them back
-    var pw1 = F.hero.powers[0];
     clearWave();
     check('wave two also grants a shield', F.hero.shieldHits === 1);
     check('...and a speed boost', F.hero.speed === 310);
-    check('and a different power-up', F.hero.power !== pw1, F.hero.power);
-    check('the first power-up is KEPT, not swapped out',
-      F.hero.powers.length === 2 && F.hero.powers.indexOf(pw1) >= 0,
+    check('wave two always earns the heat-seeking boba', F.hero.power === 'seeker');
+    check('the blasters are KEPT, not swapped out',
+      F.hero.powers.length === 2 && F.hero.powers.indexOf('dual') >= 0,
       F.hero.powers.join(','));
     secs(2.6);
     check('wave three arrives', M.waveNum === 3);
@@ -1760,11 +1791,11 @@
     F.shots.length = 0;
     F.fire(480, 400, 0, -500);
     check('dual blasters fire two straws', F.shots.length === 2);
-    F.hero.powers = ['dual', 'bombs'];
-    F.hero.cool = 0; F.shotCount = 3; F.shots.length = 0;
+    F.hero.powers = ['dual', 'seeker'];
+    F.hero.cool = 0; F.shots.length = 0;
     F.fire(480, 400, 0, -500);
     check('stacked power-ups all apply at once',
-      F.shots.length === 2 && F.shots[0].bomb === true);
+      F.shots.length === 2 && F.shots[0].seek === true);
 
     // heat-seekers bend toward a target
     F.over = null;
@@ -1998,6 +2029,14 @@
       MA.f.hero.powers.join(','));
     check('...with the shield', MA.f.hero.shieldHits === 1);
     check('...and the speed boost', MA.f.hero.speed === 310);
+    var mboss2 = MA.f.enemies.filter(function (e2) { return e2.mother; })[0];
+    check('the mothership arrives shielded', mboss2 && mboss2.shield === 3);
+    // the first shots pop bubbles, not hull
+    MA.lock = 0;
+    var hpWas = mboss2.hp;
+    MA.f.shots.push({ x: mboss2.x, y: mboss2.y, vx: 0, vy: 0, r: 10, life: 1 });
+    steps(2);
+    check('the first hit pops a bubble', mboss2.shield === 2 && mboss2.hp === hpWas);
 
     // 2) abandoning a dinner invite never bricks a chair
     G.state = G.freshState(); G.saveOk = false;
@@ -2072,6 +2111,24 @@
     steps(10);
     check('spin-outs are clamped to the map',
       rv.y <= 1000 - 60 && rv.y >= 60, rv.y.toFixed(0));
+
+    // ---------------------------------------------- ice cream, off duty
+    sec('brain freeze');
+    G.state = G.freshState(); G.saveOk = false;
+    G.state.money = 10;
+    G.go('house', { room: 'shop' }); steps(2); secs(0.4);
+    var tub = H.stations.filter(function (q) { return q.kind === 'flavorTub'; })[0];
+    standAt(tub); W.dialogue.active = false; press('act');
+    check('a scoop costs 2 coins and lands in his paws',
+      G.state.money === 8 && W.hands.has(tub.flavor), W.hands.item());
+    H.player.x = 480; H.player.y = 400; steps(3);
+    check('the prompt offers a bite', /Eat/.test(H.prompt.text), H.prompt.text);
+    W.dialogue.active = false; press('act');
+    check('eating it empties his paws', W.hands.empty());
+    check('...and freezes his brain', !!G.bobaFx && G.bobaFx.kind === 'brainfreeze');
+    check('it is a celebrated first', G.state.firsts.brainfreeze === true);
+    secs(9);
+    check('the shivers wear off', G.bobaFx === null);
 
     sec('world data');
     Object.keys(W.ROOMS).forEach(function (name) {

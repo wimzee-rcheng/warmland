@@ -71,6 +71,10 @@ The **recipe poster** on the wall opens Bobby's recipe book. A **trash can**
 empties the tray and his paws; anything held can be **put down on the floor**
 anywhere and picked back up later — floor items are saved too.
 
+**Ice cream is for eating** — buy a scoop at the parlour tubs (2 coins),
+carry it above your head, and eat it anywhere... whereupon Bobby gets
+**BRAIN FREEZE**: eight solid seconds of shivering, chattering and Brrr-r-r.
+
 **Boba is for drinking.** With a boba in hand and nothing else to do, Z drinks
 it — and something wacky happens for a while: giant Bobby, tiny Bobby, disco
 room, or sparkle toots. Random every time.
@@ -116,16 +120,19 @@ and they appear in it, forever.
 **Building things** (Builder outfit) — the park **swing set** starts broken
 behind hazard tape: fix it and *two* can swing at once. Build a **see-saw**
 next to it — it refuses to work solo, so bring a friend. Build a **critter
-box** in the living room — then go say Trix to the pom-poms at the park,
-lead them home, and say Dee by the box: THAT is how they move in, one happy
-wiggle at a time.
+box** in the living room — then go say Trix to the quiet critters at the
+park and lead them home: say Dee and they move into the box, one happy
+wiggle at a time. Once they live there they snooze in it, come along when
+asked, and scamper straight back to it whenever you say Dee.
 
 Out at the **BUILD SITE** (a pad on the neighbourhood map), building the
 house is a game you PLAY, machine by machine: climb into the **bulldozer**
-and shove all five junk piles off the lot; drive the **mixer** onto the slab
-and hold `Z` to pour the floor; hook wall panels under the **crane** and
-lower them over the lot one at a time; then grab roof panels from the
-**toolbox** and nail each one on at the house. Panda and Yuna move into the
+and shove all five junk piles off the lot; drive the **mixer** onto the plot
+and hold `Z` to pour the floor; swing the **crane's hook** over the lot (a
+landing ring shows where the panel will drop) and lower the wall panels one
+at a time; then grab roof panels from the **toolbox** and nail each one on
+at the house. The house grows stage by stage as the work is DONE — pegs,
+then slab, then walls, then roof. Panda and Yuna move into the
 finished house, which you can visit — and the map pad turns into their house
 too. Drive the **wrecking ball** up and swing it (`Z`, three smashes!) to
 knock it all flat and build it again. The car on the DRIVE HOME oval takes
@@ -158,12 +165,13 @@ fly or drive over the neighbourhood map. Land on a pad to arrive somewhere.
   book** (open the case empty-handed)
 - **SPACE** (UFO only) → free flight over planets and stars; the pulsing
   **INVASION** pad starts the alien battle, fought from inside the UFO —
-  **three waves of ten**. Your hull is patched between waves, and each wave
-  hands you a random power-up (**dual blasters**, **heat-seeking boba** or
-  **boba bombs**). Wave two's saucers carry **shields** that take an extra
-  hit — and you get a shield of your own plus a speed boost. Wave three's are
-  faster. Power-ups **stack**: whatever you earned in wave one is still yours
-  in wave three. Stopping the invasion summons **THE MOTHERSHIP** (press `E`)
+  **three waves of ten**. Your hull is patched between waves, and the
+  power-ups follow a schedule you can learn: wave one earns the **DOUBLE
+  BOBA BLASTERS**, wave two earns the **HEAT-SEEKING BOBA** plus a shield
+  and a speed boost. They stack, and they come with you into the boss
+  fight. Wave two's saucers carry **shields** that take an extra hit; wave
+  three's are faster and shoot twice as often — and the **mothership**
+  arrives triple-shielded and twice as trigger-happy. Stopping the invasion summons **THE MOTHERSHIP** (press `E`)
   for the real boss fight
 - **GROCERY** → seeds, pet food and furniture
 - **BUILD SITE** → the building site (it becomes *Panda & Yuna's* once built)
@@ -205,7 +213,7 @@ ice cream turns Bobby into **Long-Neck Bobby** for a while.
 
 ## Testing
 
-Open `tests.html`. It drives the game with scripted input and checks **1002**
+Open `tests.html`. It drives the game with scripted input and checks **1022**
 things across movement, cooking, lights, sleep, friends, suits, vehicles, jobs,
 missions, crystals, saving, the consistency of every room and map, plus
 regression suites from a full audit and a gameplay-feel pass (save-guard,

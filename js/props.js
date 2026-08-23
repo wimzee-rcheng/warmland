@@ -1320,10 +1320,8 @@
       seed: s + 'cb', fill: '#B48FD6', stroke: PAL.outline, lw: 3.2, hatch: 3.6, wash: 0.75
     });
     C.line(ctx, x + 52, y - 56, x + 108, y - 172, { seed: s + 'arm', stroke: '#8A6FB0', lw: 8, wob: 1 });
-    C.line(ctx, x + 106, y - 168, x + 106, y - 108, { seed: s + 'ch', stroke: PAL.outline, lw: 2.6, wob: 1 });
-    C.ellipse(ctx, x + 106, y - 88, 22, 22, {
-      seed: s + 'bl', fill: '#5A4A3E', stroke: PAL.outline, lw: 3.4, hatch: 3.4, wash: 0.82
-    });
+    // NOTE: no chain or ball here — they hang live (station drawOn / the
+    // driving overlay) so the ball can sway and swing without a rebake
   }};
 
   /* The friends' house, one stage at a time. */
@@ -1331,7 +1329,7 @@
     return { w: 220, d: 80, h: stage >= 3 ? 210 : (stage >= 2 ? 150 : (stage >= 1 ? 120 : 16)),
       solid: stage >= 2,
       draw: function (ctx, x, y, s) {
-        shadow(ctx, x, y, 220, 80);
+        shadow(ctx, x, y - 46, 220, 80);   // under the slab, not below the plot
         if (stage === 0) {                     // a cleared, pegged-out lot
           C.roundRect(ctx, x, y - 10, 220, 76, 6, {
             seed: s + 'lot', fill: '#C9A882', stroke: '#8A5F38', lw: 2.6, hatch: 4, wash: 0.5, fillAlpha: 0.5
@@ -1448,7 +1446,7 @@
     }
   }};
 
-  /* A snug den for the pom-poms, with three little doorways. */
+  /* A snug den for the quiet critters, with three little doorways. */
   P.critterBox = { w: 96, d: 44, h: 74, draw: function (ctx, x, y, s) {
     var top = y - 74;
     C.roundRect(ctx, x, top, 96, 74, 8, {

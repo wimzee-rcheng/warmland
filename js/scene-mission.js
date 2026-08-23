@@ -29,32 +29,21 @@
     });
   }
 
-  /* One of three, picked without repeating, so the second one always feels
-   * like a new toy. */
+  /* A fixed, learnable schedule: wave one earns DOUBLE BOBA BLASTERS,
+   * wave two earns HEAT-SEEKING BOBA plus a shield. They stack. */
   var POWERS = {
-    dual:   { name: 'DUAL BLASTERS', sub: 'Two straws are better than one!' },
-    seeker: { name: 'HEAT-SEEKING BOBA', sub: 'It finds the saucers for you!' },
-    bombs:  { name: 'BOBA BOMBS', sub: 'Every fourth shot goes BOOM!' }
+    dual:   { name: 'DOUBLE BOBA BLASTERS', sub: 'Two straws are better than one!' },
+    seeker: { name: 'HEAT-SEEKING BOBA', sub: 'It finds the saucers for you!' }
   };
 
-  /* Power-ups STACK. Wave three should feel like a reward for wave two, not
-   * a swap that takes your favourite toy away. */
-  function grantPower(f, seed) {
+  function grantPower(f, key) {
     var have = f.hero.powers || (f.hero.powers = []);
-    var keys = Object.keys(POWERS).filter(function (k) { return have.indexOf(k) < 0; });
-    if (!keys.length) {
-      // already got the lot: top up the shield instead
-      f.hero.shieldHits = (f.hero.shieldHits || 0) + 1;
-      W.game.showBanner('EXTRA SHIELD!', 'Nothing can touch you!');
-      return null;
-    }
-    var pick = keys[Math.floor(W.mulberry32(W.hash('pw' + seed))() * keys.length)];
-    have.push(pick);
-    f.hero.power = pick;                  // the newest one names the HUD
-    W.game.showBanner(POWERS[pick].name, POWERS[pick].sub);
+    if (have.indexOf(key) < 0) have.push(key);
+    f.hero.power = key;                   // the newest one names the HUD
+    W.game.showBanner(POWERS[key].name, POWERS[key].sub);
     W.fx.sparkle(f.hero.x, f.hero.y - 20, 26, 180);
     if (W.audio) W.audio.play('chime');
-    return pick;
+    return key;
   }
 
   function makeBoss() {
@@ -74,7 +63,7 @@
     if (S.mission === 'mothership') {
       // the big one: fought in the UFO, straight after the invasion
       S.boss = { x: 480, y: 170, r: 120, hp: 26, maxHp: 26, hurt: 0, t: 0,
-                 fireIn: 2, vx: 60, mother: true, spawnIn: 5 };
+                 shield: 3, fireIn: 2, vx: 60, mother: true, spawnIn: 5 };
       S.f.enemies = [S.boss];
       S.f.hero.x = 480; S.f.hero.y = 480;
       S.f.hero.hp = S.f.hero.maxHp = 6;
@@ -261,7 +250,7 @@
               W.game.showBanner('WAVE ' + S.waveNum + ' CLEAR!', 'Patching up the saucer...');
               f.hero.hp = f.hero.maxHp;             // a full hull between waves
               W.fx.hearts(f.hero.x, f.hero.y - 30, 6);
-              grantPower(f, G.state.day + ':' + S.waveNum);
+              grantPower(f, S.waveNum === 1 ? 'dual' : 'seeker');
               if (S.waveNum === 2) {
                 f.hero.shieldHits = 1;
                 f.hero.speed = 310;

@@ -142,7 +142,9 @@
       t: t, scale: this.scale,
       noShadow: jl > 0,
       held: this.isPlayer ? W.game.state.held : null,
-      neck: this.isPlayer && W.neckStretch ? W.neckStretch() : 0
+      neck: this.isPlayer && W.neckStretch ? W.neckStretch() : 0,
+      spin: this.isPlayer && W.game.bobaFx && W.game.bobaFx.kind === 'brainfreeze'
+        ? Math.sin(W.game.t * 34) * 0.055 : 0
     });
     if (jl > 0) {
       // a separate, shrinking shadow while airborne

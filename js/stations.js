@@ -186,9 +186,10 @@
       }
       if (G().state.money < 2) { say('I need 2 coins for a scoop.'); return; }
       G().state.money -= 2;
-      W.fx.hearts(st.x + st.w / 2, st.y - 40, 4);
-      say('Mmm, ' + name.toLowerCase() + '! Worth every coin.', PAL.accent);
-      if (W.audio) { W.audio.play('coin'); W.audio.play('chomp'); }
+      var bumped = W.hands.hold(st.flavor);
+      if (bumped) W.dropped.dropItem(W.sceneHouse.name, bumped, st.x + 10, st.y + 40);
+      say('One ' + name.toLowerCase() + ' scoop! Careful — it is COLD.', PAL.accent);
+      if (W.audio) W.audio.play('coin');
     }
   };
 
@@ -1401,7 +1402,7 @@
     }
   };
 
-  /* A den in the living room, so the pom-poms can move in. */
+  /* A den in the living room, so the quiet critters can move in. */
   S.critterBox = {
     label: 'Critter Box',
     locked: function () { return !(G().state.builds || {}).critterBox && !W.can('build'); },
@@ -1422,13 +1423,13 @@
       }
       var home = critterCount();
       if (home === 0) {
-        say('Empty! Say Trix to the pom-poms at the park and lead them here.');
+        say('Empty! Say Trix to the quiet critters at the park and lead them here.');
       } else if (home < 3) {
-        say(home + ' pom-pom' + (home > 1 ? 's' : '') + ' snoozing... room for ' +
+        say(home + ' quiet critter' + (home > 1 ? 's' : '') + ' snoozing... room for ' +
             (3 - home) + ' more!');
         W.fx.hearts(st.x + st.w / 2, st.y - 40, home);
       } else {
-        say('Three little snoozes. Sweet dreams, pom-poms.');
+        say('Three little snoozes. Sweet dreams, little ones.');
         W.fx.hearts(st.x + st.w / 2, st.y - 40, 4);
       }
     },
@@ -1438,18 +1439,18 @@
         if (st.s.building <= 0) {
           var G3 = G();
           G3.state.builds.critterBox = true;
-          // The box is EMPTY on purpose: the pom-poms live at the park until
+          // The box is EMPTY on purpose: the quiet critters live at the park until
           // somebody walks there, says Trix, leads them home and says Dee.
           // Moving your friends in is the game, not a cutscene.
           W.requestRebuild('living');
-          G3.showBanner('CRITTER BOX!', 'Now go fetch the pom-poms!');
+          G3.showBanner('CRITTER BOX!', 'Now go fetch the quiet critters!');
           if (W.audio) W.audio.play('cheer');
         }
       }
     }
   };
 
-  /* How many pom-poms have actually moved into the living room. */
+  /* How many quiet critters have actually moved into the living room. */
   function critterCount() {
     var fr = G().state.friendRooms || {};
     return ['critterA', 'critterB', 'critterC'].filter(function (k) {
@@ -1539,6 +1540,18 @@
   S.wreckingBall = {
     label: 'Wrecking Ball',
     locked: function () { return !W.can('build'); },
+    /* The ball is not baked into the sprite — it hangs live so it can sway
+     * while parked and truly swing while driven. */
+    drawOn: function (ctx, st) {
+      var H = W.sceneHouse;
+      if (H.machineCtl && H.machineCtl.kind === 'wreckingBall') return;  // out working
+      var prop = null;
+      W.effectiveProps(st.room).forEach(function (p) {
+        if (p.kind === 'wreckingBall') prop = p;
+      });
+      if (!prop || !W.drawBallChain) return;
+      W.drawBallChain(ctx, prop.x + 108, prop.y - 172, Math.sin(W.game.t * 1.1) * 0.09);
+    },
     prompt: function () {
       if (((G().state.builds || {}).friendHouse || 0) < 4) return 'Nothing to knock down (yet!)';
       return W.can('build') ? 'Drive the wrecking ball!' : 'A wrecking ball (needs a Builder)';

@@ -32,11 +32,9 @@
     // every power-up Bobby has collected applies at once
     var powers = this.hero.powers || (this.hero.power ? [this.hero.power] : []);
     var seek = powers.indexOf('seeker') >= 0;
-    this.shotCount = (this.shotCount || 0) + 1;
-    var bomb = powers.indexOf('bombs') >= 0 && this.shotCount % 4 === 0;
     var mk = function (ox) {
-      return { x: x + ox, y: y, vx: vx, vy: vy, r: bomb ? 12 : (big ? 11 : 8),
-               life: 2.4, seek: seek, bomb: bomb };
+      return { x: x + ox, y: y, vx: vx, vy: vy, r: big ? 11 : 8,
+               life: 2.4, seek: seek };
     };
     if (powers.indexOf('dual') >= 0) {
       this.shots.push(mk(-16), mk(16));
@@ -48,24 +46,6 @@
 
   Fight.prototype.enemyFire = function (x, y, vx, vy, r) {
     this.enemyShots.push({ x: x, y: y, vx: vx, vy: vy, r: r || 10, life: 4 });
-  };
-
-  /* A boba bomb: everything close by takes a hit too. */
-  Fight.prototype.burst = function (x, y, skip) {
-    W.fx.sparkle(x, y, 22, 160);
-    if (W.audio) W.audio.play('boom');
-    for (var e = this.enemies.length - 1; e >= 0; e--) {
-      var en = this.enemies[e];
-      if (en === skip) continue;
-      if (Math.hypot(en.x - x, en.y - y) > 90) continue;
-      if (en.shield > 0) { en.shield--; en.hurt = 0.22; continue; }
-      en.hp -= 1;
-      en.hurt = 0.22;
-      if (en.hp <= 0) {
-        W.fx.sparkle(en.x, en.y, 22, 140);
-        this.enemies.splice(e, 1);
-      }
-    }
   };
 
   Fight.prototype.hurtHero = function (n) {
@@ -145,13 +125,11 @@
             en.hurt = 0.22;
             W.fx.sparkle(en.x, en.y, 14, 90);
             if (W.audio) W.audio.play('pop');
-            if (s.bomb) this.burst(s.x, s.y, en);
             continue;
           }
           en.hp -= 1;
           en.hurt = 0.22;
           W.fx.sparkle(s.x, s.y, 6, 40);
-          if (s.bomb) this.burst(s.x, s.y, en);
           if (W.audio) W.audio.play('hit');
           if (en.hp <= 0) {
             W.fx.sparkle(en.x, en.y, 26, 150);

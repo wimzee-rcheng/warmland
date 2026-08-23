@@ -249,7 +249,10 @@
       if (p.stage) {
         var hs = {};
         for (var k4 in p) hs[k4] = p[k4];
-        hs.kind = 'houseS' + Math.min(3, (W.game.state.builds || {}).friendHouse || 0);
+        // stage N of WORK shows the art for stage N-1 completed: clearing the
+        // lot still shows pegs, pouring shows the slab arrive, the crane
+        // makes the walls appear, and the roof only exists once it is nailed
+        hs.kind = 'houseS' + Math.max(0, Math.min(3, ((W.game.state.builds || {}).friendHouse || 0) - 1));
         return hs;
       }
       // things Bobby has yet to build show a chalk outline instead
@@ -441,12 +444,29 @@
         (W.ROOMS[rn].residents || []).forEach(function (k) { st.friendRooms[k] = rn; });
       });
     }
+    var boxSlot = 0;
     Object.keys(st.friendRooms).forEach(function (key) {
       if (st.friendRooms[key] !== name) return;
       if (st.party.indexOf(key) >= 0) return;
       var pt = spot('res' + key);
       var a = W.makeFriend(key, pt[0], pt[1]);
       a.mode = 'wander';
+      // a quiet critter that has moved into its box STAYS in its box —
+      // snoozing by its own little door until somebody asks it along
+      if (name === 'living' && st.builds && st.builds.critterBox &&
+          key.indexOf('critter') === 0) {
+        var bx = null;
+        (W.ROOMS.living.props || []).forEach(function (p2) {
+          if (p2.kind === 'critterBox') bx = p2;
+        });
+        if (bx) {
+          a.x = bx.x + 22 + boxSlot * 26;
+          a.y = bx.y + 58;
+          a.mode = 'hold';
+          a.data.atBox = true;
+          boxSlot++;
+        }
+      }
       out.push(a);
     });
 
@@ -740,6 +760,21 @@
       x: home[0], y: home[1], home: home, face: 1,
       exiting: 0, done: false
     };
+    // where the business end of the machine sits, relative to where Bobby
+    // steers it — the crane's hook and the wrecker's arm tip live way off
+    // the vehicle base, and the jobs have to judge by THEM, not the treads
+    var propPos = null;
+    W.effectiveProps(S.name).forEach(function (pp) {
+      if (pp.kind === kind) propPos = pp;
+    });
+    if (propPos) {
+      var TIP = { crane: [138, -118], wreckingBall: [108, -172] };
+      var toff = TIP[kind];
+      if (toff) {
+        ctl.tip = [propPos.x + toff[0] - home[0], propPos.y + toff[1] - home[1]];
+      }
+      ctl.groundOff = propPos.y + (W.PROPS[kind].d || 40) - 44 - home[1];
+    }
     // the per-machine job
     if (kind === 'bulldozer') {
       // junk starts ON the lot; push each pile clear of it
@@ -830,32 +865,49 @@
       ctl.progress = 'Poured ' + Math.round(ctl.pour * 100) + '%';
       if (ctl.pour >= 1 && !ctl.done) { ctl.done = true; finishJob(); }
     } else if (ctl.kind === 'crane') {
-      ctl.nearStack = Math.hypot(ctl.stack[0] - ctl.x, ctl.stack[1] - ctl.y) < 90;
-      if (W.input.hit('act')) {
+      // everything is judged at the HOOK — it hangs well right of the cab
+      var hookX = ctl.x + (ctl.tip ? ctl.tip[0] : 40);
+      var hookY = ctl.y + (ctl.tip ? ctl.tip[1] : -120);
+      ctl.hookX = hookX; ctl.hookY = hookY;
+      ctl.hookOverLot = hookX > LOT.x + 10 && hookX < LOT.x + LOT.w - 10 &&
+                        ctl.y > LOT.y - 40 && ctl.y < LOT.y + LOT.h + 60;
+      ctl.nearStack = Math.hypot(ctl.stack[0] - hookX, ctl.stack[1] - hookY) < 110 ||
+                      Math.hypot(ctl.stack[0] - ctl.x, ctl.stack[1] - ctl.y) < 110;
+      if (ctl.lower) {
+        // the panel rides the cable down, kisses the ground, dust settles
+        ctl.lower.t += dt;
+        if (ctl.lower.t >= 0.8) {
+          ctl.lower = null;
+          ctl.placed++;
+          W.fx.dust(hookX, ctl.y + 10, 6);
+          W.fx.sparkle(hookX, hookY, 8, 50);
+          if (W.audio) W.audio.play('thud');
+        }
+      } else if (W.input.hit('act')) {
         if (!ctl.carrying && ctl.nearStack && ctl.placed < 3) {
           ctl.carrying = true;
           if (W.audio) W.audio.play('clack');
-        } else if (ctl.carrying && overLot) {
+        } else if (ctl.carrying && ctl.hookOverLot) {
           ctl.carrying = false;
-          ctl.placed++;
-          W.fx.dust(ctl.x, ctl.y - 20, 5);
-          W.fx.sparkle(ctl.x, ctl.y - 60, 8, 50);
-          if (W.audio) W.audio.play('thud');
+          ctl.lower = { t: 0 };
+          if (W.audio) W.audio.play('pour');
         } else if (ctl.carrying) {
-          W.say('Lower it over the lot!');
+          W.say('Swing the hook over the lot first!');
         } else if (ctl.placed < 3) {
           W.say('The wall panels are stacked by the fence!');
         }
       }
       ctl.progress = 'Walls ' + ctl.placed + '/3';
-      if (ctl.placed >= 3 && !ctl.done) { ctl.done = true; finishJob(); }
+      if (ctl.placed >= 3 && !ctl.done && !ctl.lower) { ctl.done = true; finishJob(); }
     } else if (ctl.kind === 'wreckingBall') {
+      var pivX = ctl.x + (ctl.tip ? ctl.tip[0] : 46);
+      var pivY = ctl.y + (ctl.tip ? ctl.tip[1] : -150);
       if (ctl.swing > 0) {
         ctl.swing -= dt;
         if (!ctl.boomed && ctl.swing < 0.4) {
           ctl.boomed = true;
           ctl.hits++;
-          W.fx.dust(LOT.x + 40 + Math.random() * 140, LOT.y + 30, 8);
+          W.fx.dust(pivX + 40, ctl.y + 10, 8);
           S.shakeT = 0.3;
           if (W.audio) W.audio.play('boom');
           if (ctl.hits >= 3 && !ctl.done) {
@@ -866,7 +918,7 @@
           }
         }
       } else if (W.input.hit('act')) {
-        var nearHouse = Math.hypot((LOT.x + LOT.w / 2) - ctl.x, (LOT.y + LOT.h / 2) - ctl.y) < 220;
+        var nearHouse = Math.hypot((LOT.x + LOT.w / 2) - pivX, (LOT.y + LOT.h / 2) - ctl.y) < 240;
         if (nearHouse) {
           ctl.swing = 0.8;
           ctl.boomed = false;
@@ -922,42 +974,91 @@
         C.line(g2, 8, 30, 82, 30, { seed: 'wpl', stroke: PAL.woodDk, lw: 2, wob: 1, passes: 1, strokeAlpha: 0.6 });
       }
       // the waiting stack
-      for (var p2 = ctl.placed + (ctl.carrying ? 1 : 0); p2 < 3; p2++) {
+      var inFlight = (ctl.carrying || ctl.lower) ? 1 : 0;
+      for (var p2 = ctl.placed + inFlight; p2 < 3; p2++) {
         ctx.drawImage(panelTile, ctl.stack[0] - 45, ctl.stack[1] - 26 - (2 - p2) * 12);
       }
-      // the one on the hook, swaying under the jib
+      var hx2 = ctl.hookX || ctl.x, hy2 = ctl.hookY || ctl.y - 120;
+      // a soft landing marker under the hook while carrying: green = good
       if (ctl.carrying) {
-        var sway = Math.sin(W.game.t * 3) * 6;
-        ctx.drawImage(panelTile, ctl.x - 45 + ctl.face * 40 + sway, ctl.y - 150);
         ctx.save();
-        ctx.strokeStyle = W.PAL.outline;
-        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.4 + 0.15 * Math.sin(W.game.t * 5);
+        ctx.strokeStyle = ctl.hookOverLot ? '#6FA84B' : W.PAL.white;
+        ctx.lineWidth = 4;
         ctx.beginPath();
-        ctx.moveTo(ctl.x + ctl.face * 40, ctl.y - 160);
-        ctx.lineTo(ctl.x + ctl.face * 40 + sway + 0, ctl.y - 120);
+        ctx.ellipse(hx2, ctl.y + 6, 48, 16, 0, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
-    } else if (ctl.kind === 'wreckingBall' && ctl.swing > 0) {
-      // the ball whips forward through the swing
-      var k = 1 - ctl.swing / 0.8;
-      var ang = -0.9 + k * 1.8;
-      var bx = ctl.x + ctl.face * 46 + Math.sin(ang) * 90 * ctl.face;
-      var byy = ctl.y - 150 + Math.cos(ang) * 90;
-      ctx.save();
-      ctx.strokeStyle = W.PAL.outline;
-      ctx.lineWidth = 2.4;
-      ctx.beginPath();
-      ctx.moveTo(ctl.x + ctl.face * 46, ctl.y - 150);
-      ctx.lineTo(bx, byy);
-      ctx.stroke();
-      ctx.fillStyle = '#5A4A3E';
-      ctx.beginPath();
-      ctx.arc(bx, byy, 20, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      // the panel: swaying on the hook, or riding the cable down
+      if (ctl.carrying) {
+        var sway = Math.sin(W.game.t * 3) * 5;
+        drawCable(ctx, hx2, hy2, hx2 + sway, hy2 + 16);
+        ctx.drawImage(panelTile, hx2 + sway - 45, hy2 + 12);
+      } else if (ctl.lower) {
+        var k2 = Math.min(1, ctl.lower.t / 0.8);
+        var ease = k2 * k2 * (3 - 2 * k2);
+        var py3 = hy2 + 12 + (ctl.y - 8 - (hy2 + 12)) * ease;
+        drawCable(ctx, hx2, hy2, hx2, py3);
+        ctx.drawImage(panelTile, hx2 - 45, py3);
+      }
+    } else if (ctl.kind === 'wreckingBall') {
+      // the ball ALWAYS hangs from the arm tip — sway at rest, whip mid-swing
+      var pvx = ctl.x + (ctl.tip ? ctl.tip[0] : 46);
+      var pvy = ctl.y + (ctl.tip ? ctl.tip[1] : -150);
+      var ang2;
+      if (ctl.swing > 0) {
+        var kk = 1 - ctl.swing / 0.8;              // 0 -> 1 through the swing
+        ang2 = -1.0 + Math.sin(kk * Math.PI) * 1.9; // back, WHIP through, return
+      } else {
+        ang2 = Math.sin(W.game.t * 1.3) * 0.12;     // gentle idle sway
+      }
+      drawBallChain(ctx, pvx, pvy, ang2);
     }
   }
+
+  /* A straight cable with a little hook kink. */
+  function drawCable(ctx, x0, y0, x1, y1) {
+    ctx.save();
+    ctx.strokeStyle = W.PAL.outline;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* The wrecking ball on its chain, hanging at `ang` from the pivot. */
+  function drawBallChain(ctx, px, py, ang) {
+    var L = 84;
+    var bx = px + Math.sin(ang) * L;
+    var by = py + Math.cos(ang) * L;
+    ctx.save();
+    ctx.strokeStyle = W.PAL.outline;
+    ctx.lineWidth = 3;
+    // chain: three short segments read as links better than one line
+    ctx.beginPath();
+    var midx = px + Math.sin(ang) * L * 0.5, midy = py + Math.cos(ang) * L * 0.5;
+    ctx.moveTo(px, py);
+    ctx.lineTo(midx, midy);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+    ctx.fillStyle = '#5A4A3E';
+    ctx.beginPath();
+    ctx.arc(bx, by, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = W.PAL.outline;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // a glint so it reads as heavy iron
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath();
+    ctx.arc(bx - 6, by - 7, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  W.drawBallChain = drawBallChain;
 
     /* ---- dinner ------------------------------------------------------
    * Placing a dish seats Bobby. Eating is a deliberate act with a real
@@ -1170,6 +1271,20 @@
     G.idea('boba');
     G.first('boba', 'First wacky boba!');
     S.friendsReact('boba');
+  }
+
+  var ICE_CREAMS = ['vanilla', 'chocolate', 'strawberry'];
+
+  /* Ice cream eaten too fast does what ice cream eaten too fast does. */
+  function eatIceCream(id) {
+    var G = W.game;
+    W.hands.drop();
+    G.bobaFx = { kind: 'brainfreeze', until: G.t + 8 };
+    W.say('Mmm ' + W.ITEMS[id].name.toLowerCase() + '... wait... BRRRRR! BRAIN FREEZE!!', '#8FD0EE');
+    W.fx.sparkle(S.player.x, S.player.y - 90, 10, 60);
+    G.first('brainfreeze', 'First brain freeze!');
+    S.friendsReact('boba');
+    if (W.audio) { W.audio.play('chomp'); W.audio.play('squeak'); }
   }
 
   function playerScale() {
@@ -1402,6 +1517,12 @@
     }
 
     // sparkle toots trail behind a moving sugar-rushed Bobby
+    if (G.bobaFx && G.bobaFx.kind === 'brainfreeze') {
+      if (Math.random() < dt * 3) W.fx.bubble(S.player.x + (Math.random() - 0.5) * 40, S.player.y - 80);
+      if (Math.random() < dt * 0.7) {
+        W.say(['Brrr-r-r-r!', 'C-c-c-cold!', 'My b-b-brain!'][Math.floor(Math.random() * 3)], '#8FD0EE');
+      }
+    }
     if (G.bobaFx && G.bobaFx.kind === 'toots' && S.player.moving && Math.random() < dt * 9) {
       W.fx.sparkle(S.player.x - (S.player.dir === 'right' ? 26 : S.player.dir === 'left' ? -26 : 0),
                    S.player.y - 14, 2, 22);
@@ -1444,6 +1565,27 @@
     }
 
     W.updateNPCs(S.npcs, S.room, S.solids, dt, S.player);
+
+    // ------- critters coming and going from their box
+    for (var cz = S.npcs.length - 1; cz >= 0; cz--) {
+      var czn = S.npcs[cz];
+      if (czn.data.settleAtBox && czn.mode === 'goto' &&
+          Math.hypot(czn.data.tx - czn.x, czn.data.ty - czn.y) < 14) {
+        czn.mode = 'hold';
+        czn.data.settleAtBox = false;
+        czn.data.atBox = true;
+        czn.says('zzz...', 3);
+      }
+      if (czn.data.leaving &&
+          (czn.x < S.room.bounds.x - 30 || (czn.data.leftT = (czn.data.leftT || 0) + dt) > 4)) {
+        S.npcs.splice(cz, 1);          // gone home; the living room has them now
+        continue;
+      }
+      if (czn.data.atBox && czn.mode !== 'hold') czn.data.atBox = false;  // woken up
+      if (czn.data.atBox && Math.random() < dt * 0.5) {
+        W.fx.zzz(czn.x + 10, czn.y - 40);
+      }
+    }
 
     // ------- doors
     if (!S.lock && S.player.jumpT === 0 && !S.seated) {
@@ -1553,7 +1695,9 @@
       if (!S.prompt && held) {
         S.prompt = held === 'boba'
           ? { text: 'Drink the Boba!', locked: false }
-          : { text: 'Put down the ' + W.ITEMS[held].name, locked: false };
+          : ICE_CREAMS.indexOf(held) >= 0
+            ? { text: 'Eat the ' + W.ITEMS[held].name + ' scoop!', locked: false }
+            : { text: 'Put down the ' + W.ITEMS[held].name, locked: false };
       }
 
       // nothing else to do? then the social action gets the whole pill
@@ -1604,6 +1748,7 @@
         }
       } else if (held && !S.seated) {
         if (held === 'boba') drinkBoba();
+        else if (ICE_CREAMS.indexOf(held) >= 0) eatIceCream(held);
         else if (S.player.jumpT > 0) {
           // dropping mid-jump could maroon an item on a door mat
         } else {
@@ -1664,16 +1809,39 @@
       } else if (S.talkTo && S.talkTo.friendKey &&
           G.state.party.indexOf(S.talkTo.friendKey) >= 0) {
         var wasCritter = S.talkTo.friendKey.indexOf('critter') === 0;
-        W.dismiss(S.talkTo, S.name);
+        var boxHome = wasCritter && G.state.builds.critterBox;
+        // a quiet critter with a box always goes home to THE BOX on Dee,
+        // no matter where you happen to be standing
+        W.dismiss(S.talkTo, boxHome ? 'living' : S.name);
         W.renumberParty(S.npcs);
-        // a pom-pom led to the living room moves into its box — the payoff
-        // for the walk home
-        if (wasCritter && S.name === 'living' && G.state.builds.critterBox) {
-          S.talkTo.says('*happiest wiggle*', 3);
-          W.fx.hearts(S.talkTo.x, S.talkTo.y - 60, 6);
-          W.say(S.talkTo.name + ' moved into the critter box!', PAL.accent);
-          G.first('critterhome', 'A pom-pom moved in!');
-          if (W.audio) W.audio.play('cheer');
+        if (boxHome) {
+          var firstHome = G.first('critterhome', 'A quiet critter moved in!');
+          S.talkTo.says(firstHome ? '*happiest wiggle*' : '*scampers home!*', 2.6);
+          W.fx.hearts(S.talkTo.x, S.talkTo.y - 60, firstHome ? 6 : 3);
+          if (S.name === 'living') {
+            // trot over to the box and settle in
+            var bx2 = null;
+            (W.ROOMS.living.props || []).forEach(function (p3) {
+              if (p3.kind === 'critterBox') bx2 = p3;
+            });
+            if (bx2) {
+              S.talkTo.mode = 'goto';
+              S.talkTo.data.tx = bx2.x + 48;
+              S.talkTo.data.ty = bx2.y + 58;
+              S.talkTo.data.tol = 10;
+              S.talkTo.data.settleAtBox = true;
+            }
+            W.say(S.talkTo.name + ' curls up in the critter box!', PAL.accent);
+          } else {
+            // scamper out of sight, heading home
+            S.talkTo.mode = 'goto';
+            S.talkTo.data.tx = S.room.bounds.x - 60;
+            S.talkTo.data.ty = S.talkTo.y;
+            S.talkTo.data.tol = 12;
+            S.talkTo.data.leaving = true;
+            W.say(S.talkTo.name + ' scampers home to the critter box!', PAL.accent);
+          }
+          if (W.audio) W.audio.play(firstHome ? 'cheer' : 'blip');
         }
       } else if (W.service.active()) {
         // clocking off works ANYWHERE — being stuck mid-shift because a
