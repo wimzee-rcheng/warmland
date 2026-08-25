@@ -211,7 +211,125 @@
 
   /* Megatron: stylised grey robot, purple accents, giant arm cannon.
    * Baked once — the hurt flash is just alpha at blit time. */
-  var megaTile = null, alienTile = null;
+  var megaTile = null, nemTile = null, alienTile = null;
+
+  /* Nemesis Prime: the same big-rig silhouette every kid knows — cab windows
+   * on the chest, twin smokestacks, faceplate and helmet fins — but done in
+   * black and purple instead of red and blue. Two fists, no arm cannon:
+   * that is how you tell him from Megatron at a glance. */
+  function paintNemesis(ctx) {
+    ctx.save();
+    var black = '#33303E', shadow = '#232030', purple = '#6B3FA0',
+        lilac = '#A87FD6', steel = '#8A8F9C', glass = '#7A5FC4';
+
+    ctx.save(); ctx.globalAlpha = 0.16; ctx.fillStyle = PAL.outline;
+    ctx.beginPath(); ctx.ellipse(0, 100, 78, 17, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+
+    // big boxy legs, purple shins
+    for (var s2 = -1; s2 <= 1; s2 += 2) {
+      C.roundRect(ctx, s2 * 32 - 20, 18, 40, 46, 7, {
+        seed: 'nth' + s2, fill: black, stroke: PAL.outline, lw: 3.4, hatch: 4, wash: 0.7
+      });
+      C.roundRect(ctx, s2 * 32 - 18, 58, 36, 38, 6, {
+        seed: 'nts' + s2, fill: purple, stroke: PAL.outline, lw: 3.4, hatch: 4, wash: 0.7
+      });
+      // the wheel tucked on the outside of each shin
+      C.ellipse(ctx, s2 * 50, 74, 11, 15, {
+        seed: 'ntw' + s2, fill: shadow, stroke: PAL.outline, lw: 2.8, hatch: 3, wash: 0.75
+      });
+      C.ellipse(ctx, s2 * 34, 100, 26, 10, {
+        seed: 'ntf' + s2, fill: shadow, stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.75
+      });
+    }
+
+    // smokestacks behind the shoulders
+    for (var sk = -1; sk <= 1; sk += 2) {
+      C.roundRect(ctx, sk * 62 - 7, -104, 14, 52, 5, {
+        seed: 'nstk' + sk, fill: steel, stroke: PAL.outline, lw: 3, hatch: 3, wash: 0.72
+      });
+      C.ellipse(ctx, sk * 62, -106, 9, 5, {
+        seed: 'nstt' + sk, fill: shadow, stroke: PAL.outline, lw: 2.6, hatch: 2.6, wash: 0.8
+      });
+    }
+
+    // torso
+    C.poly(ctx, [[-46, -62], [46, -62], [38, 22], [-38, 22]], {
+      seed: 'ntor', fill: black, stroke: PAL.outline, lw: 4, hatch: 4.4, wash: 0.7
+    });
+    // the truck cab: a purple grille band with two windscreen panes over it
+    C.rect(ctx, -34, -18, 68, 34, {
+      seed: 'ngrl', fill: purple, stroke: PAL.outline, lw: 3.2, hatch: 3.6, wash: 0.72
+    });
+    for (var gr = 0; gr < 4; gr++) {
+      C.line(ctx, -30, -12 + gr * 9, 30, -12 + gr * 9, {
+        seed: 'ngb' + gr, stroke: shadow, lw: 2.4, wob: 0.5, passes: 1, strokeAlpha: 0.7
+      });
+    }
+    for (var wsd = -1; wsd <= 1; wsd += 2) {
+      C.poly(ctx, [[wsd * 6, -56], [wsd * 34, -56], [wsd * 34, -24], [wsd * 6, -24]], {
+        seed: 'nwin' + wsd, fill: glass, stroke: PAL.outline, lw: 3, hatch: 3, wash: 0.6
+      });
+      C.line(ctx, wsd * 10, -52, wsd * 30, -30, {
+        seed: 'nwg' + wsd, stroke: PAL.white, lw: 3, wob: 0.6, passes: 1, strokeAlpha: 0.45
+      });
+    }
+
+    // shoulders
+    for (var sh = -1; sh <= 1; sh += 2) {
+      C.poly(ctx, [[sh * 46, -70], [sh * 82, -56], [sh * 74, -16], [sh * 42, -28]], {
+        seed: 'nsh' + sh, fill: purple, stroke: PAL.outline, lw: 3.4, hatch: 3.8, wash: 0.7
+      });
+      C.dot(ctx, sh * 62, -42, 6, lilac, 'nshb' + sh);
+    }
+    // both arms end in a fist — no cannon
+    for (var ar = -1; ar <= 1; ar += 2) {
+      C.roundRect(ctx, ar * 78 - 12, -22, 24, 58, 8, {
+        seed: 'narm' + ar, fill: black, stroke: PAL.outline, lw: 3.4, hatch: 3.6, wash: 0.7
+      });
+      C.roundRect(ctx, ar * 78 - 15, 32, 30, 26, 7, {
+        seed: 'nfist' + ar, fill: steel, stroke: PAL.outline, lw: 3.2, hatch: 3.2, wash: 0.75
+      });
+    }
+
+    // helmet, faceplate and fins
+    C.poly(ctx, [[-25, -100], [25, -100], [29, -66], [-29, -66]], {
+      seed: 'nhead', fill: black, stroke: PAL.outline, lw: 3.6, hatch: 3.6, wash: 0.72
+    });
+    // crest down the middle
+    C.rect(ctx, -5, -108, 10, 14, {
+      seed: 'ncrest', fill: purple, stroke: PAL.outline, lw: 2.6, hatch: 2.6, wash: 0.78
+    });
+    // the visor
+    C.rect(ctx, -20, -94, 40, 11, {
+      seed: 'nvis', fill: '#C44FE8', stroke: PAL.outline, lw: 2.8, hatch: 2.4, wash: 0.85
+    });
+    // the faceplate — the Prime giveaway
+    C.roundRect(ctx, -16, -80, 32, 14, 4, {
+      seed: 'nmask', fill: steel, stroke: PAL.outline, lw: 2.8, hatch: 2.8, wash: 0.78
+    });
+    // helmet fins, one each side
+    for (var f2 = -1; f2 <= 1; f2 += 2) {
+      C.poly(ctx, [[f2 * 26, -98], [f2 * 42, -100], [f2 * 29, -80]], {
+        seed: 'nfin' + f2, fill: purple, stroke: PAL.outline, lw: 3, hatch: 3, wash: 0.75
+      });
+    }
+    ctx.restore();
+  }
+
+  W.drawNemesis = function (ctx, x, y, sc, t, hurt) {
+    if (!nemTile) {
+      nemTile = C.offscreen(340, 260);
+      var ng = nemTile.getContext('2d');
+      ng.translate(170, 140);
+      paintNemesis(ng);
+    }
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(sc, sc);
+    if (hurt > 0) ctx.globalAlpha = 0.55 + 0.45 * Math.sin(t * 50);
+    ctx.drawImage(nemTile, -170, -140);
+    ctx.restore();
+  };
 
   W.drawMegatron = function (ctx, x, y, sc, t, hurt) {
     if (!megaTile) {

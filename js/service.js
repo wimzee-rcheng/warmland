@@ -20,6 +20,17 @@
       window: [485, 430],           // where the customer stands to be served
       queueFrom: [560, 430], queueStep: [46, 0]
     },
+    /* Butterball's version of the cart round: same loop, his own drink. */
+    lemonade: {
+      name: 'Lemonade Wagon',
+      style: 'line',
+      items: ['lemonade'],
+      pay: 3,
+      target: 5,
+      onTarget: 'megatron',
+      window: [485, 430],
+      queueFrom: [560, 430], queueStep: [46, 0]
+    },
     iceCream: {
       name: 'Ice Cream Counter',
       style: 'fetch',               // fetch the asked flavor, deliver it
@@ -238,7 +249,7 @@
         C.roundRect(eg, 8, 8, 280, 46, 12, {
           seed: 'ev', fill: PAL.roof, stroke: PAL.outline, lw: 3, hatch: 4, wash: 0.8, fillAlpha: 0.3
         });
-        C.text(eg, '!  SPECIAL EVENT  —  E', 148, 38, {
+        C.text(eg, '!  SPECIAL EVENT  \u2014  E', 148, 38, {
           size: 18, align: 'center', color: PAL.white, outline: 3, outlineColor: PAL.outline, seed: 'evt'
         });
         J.tiles = { jb: jb, wb: wb, ev: ev };
@@ -268,6 +279,10 @@
         ctx.save();
         ctx.globalAlpha = 0.55 + pulse * 0.45;
         ctx.drawImage(J.tiles.ev, 652, 4);
+        if (W.keyChip) {
+          var eb = 1 + 0.18 * Math.sin(W.game.t * 7);
+          ctx.drawImage(W.keyChip('E'), 900, 12, 40 * eb, 34 * eb);
+        }
         ctx.restore();
       }
     }

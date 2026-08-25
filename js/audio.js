@@ -82,6 +82,8 @@
     pour:   function () { noise(0.5, 0.14, 700); },
     water:  function () { noise(0.9, 0.12, 1600); },
     thud:   function () { tone(90, 0.12, 'sine', 0.24, 55); noise(0.14, 0.1, 300); },
+    uhuh:   function () { tone(220, 0.11, 'triangle', 0.2, 180);
+                          setTimeout(function () { tone(180, 0.14, 'triangle', 0.2, 150); }, 120); },
     rattle: function () { noise(0.09, 0.06, 220); },
     engine: function (frac, pedal) {
       // a low buzzing note that climbs with speed; louder while accelerating

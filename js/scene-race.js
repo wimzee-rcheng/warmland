@@ -183,9 +183,9 @@
   function makeRacers() {
     var G = W.game;
     var list = [{
-      player: true, name: 'Bobby', tint: '#D9604B',
+      player: true, name: 'You', tint: '#D9604B',
       x: 0, y: 0, vx: 0, vy: 0, ang: -Math.PI / 2, speed: 0,
-      lap: 0, gate: 0, u: 0, prevU: 0, place: 1, done: false, char: 'bobby'
+      lap: 0, gate: 0, u: 0, prevU: 0, place: 1, done: false, char: W.heroChar()
     }];
 
     // friends who tagged along get a kart of their own
@@ -234,6 +234,14 @@
   }
 
   // ------------------------------------------------------------- the scene
+
+  /* Back onto the race-track pad, not the last house you were in. */
+  function backToMap() {
+    W.game.fadeTo('vehicle', {
+      vehicle: 'car', map: 'neighborhood',
+      at: W.mapPadAt('neighborhood', 'race')
+    });
+  }
 
   S.enter = function () {
     S.t = 0;
@@ -415,11 +423,11 @@
     }
 
     if (W.input.hit('back')) {
-      G.fadeTo('vehicle', { vehicle: 'car', map: 'neighborhood' });
+      backToMap();
       return;
     }
     if (W.input.hit('act') && S.finished && S.finishT > 0.6) {
-      G.fadeTo('vehicle', { vehicle: 'car', map: 'neighborhood' });
+      backToMap();
     }
   };
 
@@ -438,7 +446,7 @@
       drawKart(ctx, sx, sy, r.ang, r.tint, S.t * Math.min(1, r.speed / 200));
       // the driver's head pokes out of the seat
       W.drawChar(ctx, sx - Math.cos(r.ang) * 12, sy - Math.sin(r.ang) * 12 - 6, {
-        char: r.player ? 'bobby' : (r.char || 'npc'),
+        char: r.player ? W.heroChar() : (r.char || 'npc'),
         tint: r.player ? null : r.charTint,
         suit: r.player ? G.state.suit : 'none',
         dir: 'down', t: G.t, scale: 0.42, noShadow: true
@@ -477,9 +485,7 @@
           color: order[p].player ? PAL.roof : PAL.outline, seed: 'rp' + p + order[p].name
         });
       }
-      C.textCached(ctx, '[Z] back to the road', 480, 400, {
-        size: 18, align: 'center', color: PAL.outline, seed: 'rback'
-      });
+      W.drawPrompt(ctx, 480, 406, 'back to the road', S.t, false, 'Z');
     }
 
     W.dialogue.draw(ctx, 480, 520);

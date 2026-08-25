@@ -122,6 +122,14 @@
     return out;
   }
 
+  /* The snow run hands you back over the SNOW RUN pad. */
+  function backToMap() {
+    W.game.fadeTo('vehicle', {
+      vehicle: W.vehicleForMap('crystalMountain'), map: 'crystalMountain',
+      at: W.mapPadAt('crystalMountain', 'snow')
+    });
+  }
+
   S.enter = function () {
     S.t = 0;
     S.x = 480;
@@ -147,14 +155,14 @@
     W.fx.update(dt);
 
     if (W.input.hit('back')) {
-      G.fadeTo('vehicle', { vehicle: 'balloon', map: 'crystalMountain' });
+      backToMap();
       return;
     }
 
     if (S.done) {
       S.doneT += dt;
       if (W.input.hit('act') && S.doneT > 0.5) {
-        G.fadeTo('vehicle', { vehicle: 'balloon', map: 'crystalMountain' });
+        backToMap();
       }
       return;
     }
@@ -241,7 +249,7 @@
     var bx = S.x, byy = 430;
     ctx.drawImage(boardTile(S.lean < -0.3 ? 0 : S.lean > 0.3 ? 2 : 1), bx - 70, byy - 20);
     W.drawChar(ctx, bx, byy - 8, {
-      char: 'bobby', suit: G.state.suit, dir: 'down', t: G.t, scale: 0.86,
+      char: W.heroChar(), suit: G.state.suit, dir: 'down', t: G.t, scale: 0.86,
       spin: S.tumble > 0 ? S.t * 9 : S.lean * 0.18, noShadow: true
     });
 
@@ -271,9 +279,7 @@
         size: 18, align: 'center', color: PAL.woodDk,
         seed: 'snfb' + Math.max(S.best, S.flakes)
       });
-      C.textCached(ctx, '[Z] back to the balloon', 480, 372, {
-        size: 18, align: 'center', color: PAL.outline, seed: 'snfz'
-      });
+      W.drawPrompt(ctx, 480, 378, 'back to the balloon', S.t, false, 'Z');
     } else {
       C.textCached(ctx, 'arrows steer  ·  X give up', 480, 578, {
         size: 15, align: 'center', color: PAL.white,

@@ -46,6 +46,31 @@
     critter: {
       name: 'Quiet Critter', body: 'pom', googly: true, fur: '#C94FD6', small: true
     },
+    /* Warmland 2's cast, drawn from the older brother's own pages. */
+    galaxy: {
+      name: 'Galaxy', body: 'butterfly', flies: true,
+      fur: '#D8D8DE', glasses: null, eye: '#3B2A20', lashes: true,
+      wing: '#5A3FA8', wingInner: '#F2C14E', starWings: true,
+      antenna: '#5A3FA8', foot: '#5A3FA8'
+    },
+    scaly: {
+      name: 'Scaly Critter', body: 'scaly', fur: '#7FB05A',
+      crest: '#C7D96B', spot: '#5E8A3E', small: true
+    },
+    dino: {
+      name: 'Cracker', body: 'dino',
+      fur: '#7FC46F', belly: '#4E9A4A', spike: '#F2C14E'
+    },
+    /* The laboratory's barman: eight legs, four eyes, one bow tie. */
+    spider: {
+      name: 'Webs', body: 'spider', fur: '#6B4A7A', belly: '#8F6BA8',
+      eye: '#F2E14E', tie: '#D9402F', small: true
+    },
+
+    /* Haunted-house ghosts: grey and sad until you zap their colour back. */
+    ghost: {
+      name: 'Ghost', body: 'ghost', flies: true, fur: '#C9C4D4'
+    },
     pet: {
       name: 'Fluff', body: 'pup',
       fur: '#F2D5A0', ear: '#E8A05C', nose: '#8A5A2B'
@@ -64,13 +89,23 @@
   // Each body type gets its own tile so a wide butterfly doesn't make every
   // bake more expensive.
   var TILES = {
-    cup:       { w: 120, h: 170, ax: 60, ay: 148 },
-    mech:      { w: 160, h: 210, ax: 80, ay: 190 },
-    butterfly: { w: 164, h: 140, ax: 82, ay: 116 },
+    cup:       { w: 120, h: 184, ax: 60, ay: 162 },
+    mech:      { w: 196, h: 210, ax: 98, ay: 190 },
+    butterfly: { w: 164, h: 178, ax: 82, ay: 154 },
     pom:       { w: 80,  h: 84,  ax: 40, ay: 70 },
     pup:       { w: 96,  h: 84,  ax: 48, ay: 72 },
+    scaly:     { w: 104, h: 70,  ax: 52, ay: 58 },
+    dino:      { w: 96,  h: 106, ax: 48, ay: 92 },
+    ghost:     { w: 92,  h: 110, ax: 46, ay: 96 },
+    spider:    { w: 160, h: 100, ax: 80, ay: 80 },
     person:    { w: 110, h: 168, ax: 55, ay: 146 }
   };
+
+  /* Outfits go on whoever the player is playing — Bobby OR Butterball —
+   * but never on the NPC copy of that character standing in the park. */
+  function isHero(charKey) {
+    return charKey === (W.heroChar ? W.heroChar() : 'bobby');
+  }
 
   // ------------------------------------------------------------- colouring
 
@@ -87,7 +122,16 @@
     if (!tint) return spec;
     var out = {};
     for (var k in spec) out[k] = spec[k];
-    if (spec.body === 'person') {
+    if (spec.body === 'ghost') {
+      out.fur = tint;                  // a zapped ghost keeps its own colour
+    } else if (spec.body === 'scaly') {
+      out.fur = tint;
+      out.crest = shade(tint, 46);
+      out.spot = shade(tint, -46);
+    } else if (spec.body === 'dino') {
+      out.fur = tint;
+      out.spike = shade(tint, 60);
+    } else if (spec.body === 'person') {
       // one tint, one consistent townsperson
       var r = W.mulberry32(W.hash('person' + tint));
       out.shirt = tint;
@@ -400,34 +444,45 @@
     });
   }
 
-  function drawHat(ctx, suit, seed) {
+  /* headY says where the top of the head is; the cup body's is -86, but a
+   * butterfly's round body-head sits somewhere else entirely. */
+  function drawHat(ctx, suit, seed, headY) {
     if (!suit || !suit.hat) return;
-    var hy = -86;
+    var hy = (headY === undefined || headY === null) ? -86 : headY;
     if (suit.hat === 'toque') {
-      C.ellipse(ctx, 3, hy - 36, 22, 15, {
+      // a proper puffy chef's hat: tall crown, band around the brow
+      C.ellipse(ctx, 2, hy - 44, 25, 19, {
         seed: seed + 'toqueP', fill: PAL.white, stroke: PAL.outline,
         lw: 2.8, hatch: 3.2, wash: 0.8, fillAlpha: 0.25, wob: 1.3
       });
-      C.roundRect(ctx, -17, hy - 32, 39, 14, 5, {
+      C.ellipse(ctx, -16, hy - 38, 13, 12, {
+        seed: seed + 'toqueP2', fill: PAL.white, stroke: PAL.outline,
+        lw: 2.4, hatch: 3, wash: 0.8, fillAlpha: 0.22, wob: 1.2
+      });
+      C.ellipse(ctx, 18, hy - 38, 13, 12, {
+        seed: seed + 'toqueP3', fill: PAL.white, stroke: PAL.outline,
+        lw: 2.4, hatch: 3, wash: 0.8, fillAlpha: 0.22, wob: 1.2
+      });
+      C.roundRect(ctx, -19, hy - 32, 41, 15, 5, {
         seed: seed + 'toqueB', fill: PAL.white, stroke: PAL.outline,
         lw: 2.6, hatch: 3.2, wash: 0.85, fillAlpha: 0.22, wob: 1
       });
     } else if (suit.hat === 'helmet') {
-      C.arc(ctx, 0, hy - 6, 30, Math.PI, Math.PI * 2, {
+      C.arc(ctx, 0, hy - 20, 32, Math.PI, Math.PI * 2, {
         seed: seed + 'hel', fill: '#D94F4F', stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.75
       });
-      C.rect(ctx, -26, hy - 12, 52, 9, {
+      C.rect(ctx, -32, hy - 22, 64, 10, {
         seed: seed + 'visor', fill: '#3B2A20', stroke: PAL.outline, lw: 2.2, hatch: 2.6, wash: 0.85
       });
-      C.line(ctx, -30, hy - 4, 30, hy - 4, { seed: seed + 'helr', stroke: PAL.white, lw: 3, wob: 0.9, passes: 1 });
+      C.line(ctx, -30, hy - 34, 30, hy - 34, { seed: seed + 'helr', stroke: PAL.white, lw: 3, wob: 0.9, passes: 1 });
     } else if (suit.hat === 'hardhat') {
-      C.arc(ctx, 0, hy - 8, 29, Math.PI, Math.PI * 2, {
+      C.arc(ctx, 0, hy - 22, 31, Math.PI, Math.PI * 2, {
         seed: seed + 'hh', fill: '#F2C14E', stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.8
       });
-      C.rect(ctx, -34, hy - 12, 68, 8, {
+      C.rect(ctx, -37, hy - 26, 74, 9, {
         seed: seed + 'brim', fill: '#F2C14E', stroke: PAL.outline, lw: 2.4, hatch: 2.8, wash: 0.8
       });
-      C.line(ctx, 0, hy - 36, 0, hy - 10, { seed: seed + 'ridge', stroke: '#C79A2E', lw: 3, wob: 0.8, passes: 1 });
+      C.line(ctx, 0, hy - 52, 0, hy - 24, { seed: seed + 'ridge', stroke: '#C79A2E', lw: 3, wob: 0.8, passes: 1 });
     }
   }
 
@@ -450,10 +505,19 @@
         seed: seed + 'wl' + s, fill: spec.wing, stroke: PAL.outline,
         lw: 2.8, hatch: 4, wash: 0.62, wob: 1.1
       });
-      C.ellipse(ctx, 2, -6, 11, 13, {
-        seed: seed + 'wi' + s, fill: spec.wingInner, stroke: PAL.outline,
-        lw: 2, hatch: 2.8, wash: 0.8, wob: 0.9
-      });
+      if (spec.starWings) {
+        // Galaxy's wings each carry a big yellow star
+        C.star(ctx, 16, -6, 15, spec.wingInner, seed + 'star' + s);
+        C.arc(ctx, 16, -6, 15, 0, Math.PI * 2, {
+          seed: seed + 'starr' + s, stroke: PAL.outline, lw: 2, wob: 1.2,
+          passes: 1, strokeAlpha: 0.5
+        });
+      } else {
+        C.ellipse(ctx, 2, -6, 11, 13, {
+          seed: seed + 'wi' + s, fill: spec.wingInner, stroke: PAL.outline,
+          lw: 2, hatch: 2.8, wash: 0.8, wob: 0.9
+        });
+      }
       ctx.restore();
     }
 
@@ -479,7 +543,7 @@
       lw: 3.2, hatch: 3.8, wash: 0.66, wob: 1.2
     });
 
-    if (dir === 'up') return;
+    if (dir === 'up') { drawHat(ctx, spec.suit, seed + 'bhat', -46); return; }
 
     // round blue glasses with brown eyes behind them
     var blink = (t % 3.8) > 3.66;
@@ -496,11 +560,22 @@
         C.dot(ctx, ex + 1.6, by - 8, 1.3, PAL.white, seed + 'gl' + e);
         ctx.globalAlpha = 1;
       }
-      C.ellipse(ctx, ex, by - 6, 9.5, 9.5, {
-        seed: seed + 'gls' + e, stroke: spec.glasses, lw: 2.8, wob: 0.6
-      });
+      if (spec.glasses) {
+        C.ellipse(ctx, ex, by - 6, 9.5, 9.5, {
+          seed: seed + 'gls' + e, stroke: spec.glasses, lw: 2.8, wob: 0.6
+        });
+      } else if (spec.lashes) {
+        // Galaxy has lashes rather than Butterball's specs
+        for (var ls = -1; ls <= 1; ls++) {
+          C.line(ctx, ex + ls * 3, by - 12, ex + ls * 5, by - 18, {
+            seed: seed + 'lash' + e + ls, stroke: PAL.outline, lw: 1.8, wob: 0.4, passes: 1
+          });
+        }
+      }
     }
-    C.line(ctx, -2, by - 6, 2, by - 6, { seed: seed + 'bridge', stroke: spec.glasses, lw: 2.4, wob: 0.4 });
+    if (spec.glasses) {
+      C.line(ctx, -2, by - 6, 2, by - 6, { seed: seed + 'bridge', stroke: spec.glasses, lw: 2.4, wob: 0.4 });
+    }
 
     C.arc(ctx, 0, by + 4, 5, Math.PI * 0.1, Math.PI * 0.9, {
       seed: seed + 'sm', stroke: '#7A4A2A', lw: 2.2, wob: 0.5, passes: 1
@@ -517,6 +592,223 @@
     });
     C.line(ctx, -10, by + 23, 10, by + 23, { seed: seed + 'pt1', stroke: '#7A4A2A', lw: 1.4, wob: 0.5, passes: 1 });
     C.line(ctx, -7, by + 27, 7, by + 27, { seed: seed + 'pt2', stroke: '#7A4A2A', lw: 1.4, wob: 0.5, passes: 1 });
+
+    // the hat goes on last, sitting on top of the round body-head
+    drawHat(ctx, spec.suit, seed + 'bhat', by - 28);
+  }
+
+  // ---------------------------------------------------------- the spider
+
+  /* Webs, the friendly barman. Round, plush, and waving at least two of
+   * his legs at all times. */
+  function drawSpider(ctx, spec, dir, seed, t, frame) {
+    var by = -26;
+    var step = Math.sin(frame / 4 * Math.PI * 2);
+
+    // eight legs, four a side, each with a knee
+    for (var sd = -1; sd <= 1; sd += 2) {
+      for (var l = 0; l < 4; l++) {
+        var out = 22 + l * 11;
+        var wob = Math.sin(t * 2.4 + l * 1.2 + (sd > 0 ? 0 : 1.6)) * 3 + step * 2;
+        C.line(ctx, sd * 9, by - 4 + l * 3,
+                    sd * out, by - 18 - l * 2 + wob, {
+          seed: seed + 'lu' + sd + l, stroke: spec.fur, lw: 5.5, wob: 0.9
+        });
+        C.line(ctx, sd * out, by - 18 - l * 2 + wob,
+                    sd * (out + 12), by + 16 + l * 2 - wob * 0.5, {
+          seed: seed + 'ld' + sd + l, stroke: spec.fur, lw: 5, wob: 0.9
+        });
+      }
+    }
+
+    // fuzzy round body
+    C.ellipse(ctx, 0, by, 26, 24, {
+      seed: seed + 'body', fill: spec.fur, stroke: PAL.outline,
+      lw: 3.2, hatch: 3.8, wash: 0.66, wob: 1.2
+    });
+    C.ellipse(ctx, 0, by + 6, 16, 13, {
+      seed: seed + 'belly', fill: spec.belly, stroke: null,
+      hatch: 3, wash: 0.7, fillAlpha: 0.7
+    });
+
+    // four friendly eyes
+    if (dir !== 'up') {
+      var EY = [[-11, -9, 5.5], [11, -9, 5.5], [-5, 0, 3.4], [5, 0, 3.4]];
+      for (var e = 0; e < EY.length; e++) {
+        C.dot(ctx, EY[e][0], by + EY[e][1], EY[e][2], PAL.white, seed + 'ew' + e);
+        C.dot(ctx, EY[e][0] + 1, by + EY[e][1], EY[e][2] * 0.5, PAL.outline, seed + 'ep' + e);
+      }
+      C.arc(ctx, 0, by + 9, 7, Math.PI * 0.12, Math.PI * 0.88, {
+        seed: seed + 'smile', stroke: PAL.outline, lw: 2.4, wob: 0.5, passes: 1
+      });
+    }
+
+    // the barman's bow tie
+    C.poly(ctx, [[-13, by + 22], [-3, by + 17], [-3, by + 27]], {
+      seed: seed + 'tieL', fill: spec.tie, stroke: PAL.outline, lw: 2.2, hatch: 2.4, wash: 0.85
+    });
+    C.poly(ctx, [[13, by + 22], [3, by + 17], [3, by + 27]], {
+      seed: seed + 'tieR', fill: spec.tie, stroke: PAL.outline, lw: 2.2, hatch: 2.4, wash: 0.85
+    });
+    C.dot(ctx, 0, by + 22, 3, spec.tie, seed + 'tieK');
+  }
+
+  // ----------------------------------------------------------- ghost
+
+  /* A friendly sheet-ghost with a wavy hem. Grey while it is sad; the
+   * colour-zapper repaints the very same shape in its true colour. */
+  function drawGhost(ctx, spec, dir, seed, t) {
+    var by = -46;
+    var wob = Math.sin(t * 2) * 3;
+
+    // body: a dome with a wavy bottom
+    var pts = [];
+    for (var a = 0; a <= 12; a++) {
+      var ang = Math.PI + (a / 12) * Math.PI;
+      pts.push([Math.cos(ang) * 30, by + Math.sin(ang) * 34]);
+    }
+    for (var h = 0; h < 5; h++) {
+      pts.push([30 - h * 15, by + 30 + ((h % 2) ? 14 : 2) + wob]);
+    }
+    C.poly(ctx, pts, {
+      seed: seed + 'body', fill: spec.fur, stroke: PAL.outline,
+      lw: 3, hatch: 4, wash: 0.62, fillAlpha: 0.75, wob: 1.2
+    });
+
+    if (dir === 'up') return;
+
+    // big friendly eyes and a little o of a mouth
+    for (var e = -1; e <= 1; e += 2) {
+      C.dot(ctx, e * 10, by - 6, 6.5, PAL.white, seed + 'ew' + e);
+      C.dot(ctx, e * 10, by - 5, 3.4, PAL.outline, seed + 'ep' + e);
+    }
+    C.ellipse(ctx, 0, by + 12, 6, 8, {
+      seed: seed + 'mo', fill: PAL.outline, stroke: null, hatch: 2, wash: 0.9, fillAlpha: 0.7
+    });
+    // rosy cheeks once it has its colour back
+    if (spec.happy) {
+      for (var ch = -1; ch <= 1; ch += 2) {
+        C.dot(ctx, ch * 20, by + 6, 5, '#E8A0B4', seed + 'ck' + ch);
+      }
+    }
+  }
+
+  // ------------------------------------------------------- scaly critter
+
+  /* Warmland 2's quiet critters: a little side-on lizard with a leaf-
+   * striped crest down its back and a long curling tail. */
+  function drawScaly(ctx, spec, dir, seed, t) {
+    var flip = dir === 'left' ? -1 : 1;
+    ctx.save();
+    ctx.scale(flip, 1);
+    var by = -22;
+
+    // tail, sweeping back and up
+    C.arc(ctx, -18, by + 4, 26, Math.PI * 1.05, Math.PI * 1.75, {
+      seed: seed + 'tail', stroke: spec.fur, lw: 9, wob: 1.2
+    });
+    C.dot(ctx, -42, by - 6, 4.5, spec.fur, seed + 'tailtip');
+
+    // legs (2 frames of wiggle)
+    var wig = Math.sin(t * 6) * 3;
+    for (var l = -1; l <= 1; l += 2) {
+      C.line(ctx, l * 12, by + 12, l * 14 + wig * l, by + 26, {
+        seed: seed + 'leg' + l, stroke: spec.fur, lw: 6, wob: 0.8
+      });
+      C.dot(ctx, l * 14 + wig * l, by + 27, 3.6, spec.fur, seed + 'foot' + l);
+    }
+
+    // body
+    C.ellipse(ctx, 0, by, 27, 15, {
+      seed: seed + 'body', fill: spec.fur, stroke: PAL.outline,
+      lw: 2.8, hatch: 3.4, wash: 0.72, wob: 1
+    });
+    // the leaf-striped crest
+    for (var c = -2; c <= 2; c++) {
+      C.poly(ctx, [[c * 10 - 5, by - 10], [c * 10 + 5, by - 10], [c * 10, by - 22]], {
+        seed: seed + 'crest' + c, fill: spec.crest, stroke: PAL.outline,
+        lw: 2, hatch: 2.6, wash: 0.8
+      });
+    }
+    // spots
+    for (var sp = 0; sp < 4; sp++) {
+      C.dot(ctx, -14 + sp * 9, by + 3 + (sp % 2) * 5, 2.6, spec.spot, seed + 'sp' + sp);
+    }
+    // head
+    C.ellipse(ctx, 26, by - 4, 15, 11, {
+      seed: seed + 'head', fill: spec.fur, stroke: PAL.outline,
+      lw: 2.6, hatch: 3, wash: 0.75, wob: 0.9
+    });
+    C.dot(ctx, 30, by - 8, 3.4, PAL.white, seed + 'eyew');
+    C.dot(ctx, 31, by - 8, 1.9, PAL.outline, seed + 'eye');
+    C.line(ctx, 34, by, 40, by, { seed: seed + 'snout', stroke: PAL.outline, lw: 2, wob: 0.5, passes: 1 });
+    ctx.restore();
+  }
+
+  // ----------------------------------------------------------- baby dino
+
+  /* Cracker: a small upright T-rex with a wide dark mouth, a dark belly
+   * and yellow spikes down his back. */
+  function drawDino(ctx, spec, dir, seed, t, frame) {
+    var flip = dir === 'left' ? -1 : 1;
+    ctx.save();
+    ctx.scale(flip, 1);
+    var by = -34;
+    var step = Math.sin(frame / 4 * Math.PI * 2) * 3;
+
+    // tail
+    C.arc(ctx, -20, by + 26, 22, Math.PI * 1.1, Math.PI * 1.8, {
+      seed: seed + 'tail', stroke: spec.fur, lw: 11, wob: 1.2
+    });
+
+    // legs
+    for (var l = -1; l <= 1; l += 2) {
+      C.line(ctx, l * 7, by + 24, l * 8 + step * l, by + 40, {
+        seed: seed + 'leg' + l, stroke: spec.fur, lw: 9, wob: 0.8
+      });
+      C.ellipse(ctx, l * 9 + step * l, by + 41, 8, 4.5, {
+        seed: seed + 'foot' + l, fill: spec.fur, stroke: PAL.outline,
+        lw: 2, hatch: 2.4, wash: 0.8
+      });
+    }
+
+    // body + belly
+    C.ellipse(ctx, 0, by + 10, 20, 24, {
+      seed: seed + 'body', fill: spec.fur, stroke: PAL.outline,
+      lw: 3, hatch: 3.6, wash: 0.72, wob: 1
+    });
+    C.ellipse(ctx, 6, by + 14, 11, 17, {
+      seed: seed + 'belly', fill: spec.belly, stroke: null, hatch: 3, wash: 0.7, fillAlpha: 0.75
+    });
+    // little arms
+    C.line(ctx, 12, by + 6, 20, by + 12, { seed: seed + 'arm', stroke: spec.fur, lw: 5, wob: 0.7 });
+
+    // spikes down the back
+    for (var s2 = 0; s2 < 5; s2++) {
+      var sy = by + 26 - s2 * 11;
+      C.poly(ctx, [[-16, sy], [-16, sy - 8], [-24, sy - 3]], {
+        seed: seed + 'spk' + s2, fill: spec.spike, stroke: PAL.outline,
+        lw: 1.8, hatch: 2.2, wash: 0.85
+      });
+    }
+
+    // head — one clean green, snout included, with a drawn-on grin
+    C.ellipse(ctx, 4, by - 16, 18, 15, {
+      seed: seed + 'head', fill: spec.fur, stroke: PAL.outline,
+      lw: 3, hatch: 3.4, wash: 0.75, wob: 1
+    });
+    C.ellipse(ctx, 15, by - 12, 10, 9, {
+      seed: seed + 'snout', fill: spec.fur, stroke: PAL.outline,
+      lw: 2.6, hatch: 3, wash: 0.72, wob: 0.9
+    });
+    // the grin rides just under the snout, where it can actually be seen
+    C.arc(ctx, 13, by - 7, 9, Math.PI * 0.12, Math.PI * 0.88, {
+      seed: seed + 'grin', stroke: PAL.outline, lw: 2.6, wob: 0.6, passes: 1
+    });
+    C.dot(ctx, 23, by - 15, 2.2, PAL.outline, seed + 'nose');
+    C.dot(ctx, 6, by - 22, 4.4, PAL.white, seed + 'eyew');
+    C.dot(ctx, 7, by - 22, 2.4, PAL.outline, seed + 'eye');
+    ctx.restore();
   }
 
   // ----------------------------------------------------------- pom critter
@@ -623,6 +915,26 @@
    * with a tap, pearl-studded armour, boba gun on the right arm. */
   function drawMech(ctx, spec, dir, seed, t, swing) {
     var steel = '#9AA6AE', dark = '#6E7A82', trim = '#C7D0D6';
+    var fly = spec.body === 'butterfly';
+    // Bobby's bot runs on boba; Butterball's runs on lemonade
+    var juice = fly ? '#F2D64E' : (spec.cupBot || '#D9A863');
+
+    // Butterball's bot FLIES: plated wings behind everything, star and all
+    if (fly) {
+      for (var bw = -1; bw <= 1; bw += 2) {
+        C.ellipse(ctx, bw * 58, -116, 25, 32, {
+          seed: seed + 'bwU' + bw, fill: spec.wing || '#4FA3E8', stroke: PAL.outline,
+          lw: 3.2, hatch: 3.8, wash: 0.68
+        });
+        C.ellipse(ctx, bw * 52, -74, 19, 23, {
+          seed: seed + 'bwL' + bw, fill: spec.wing || '#4FA3E8', stroke: PAL.outline,
+          lw: 3, hatch: 3.4, wash: 0.7
+        });
+        C.star(ctx, bw * 58, -118, 11, spec.wingInner || '#F2E14E', seed + 'bws' + bw);
+        C.line(ctx, bw * 30, -100, bw * 44, -110,
+          { seed: seed + 'bwj' + bw, stroke: trim, lw: 4, wob: 0.6, passes: 1 });
+      }
+    }
 
     // legs
     for (var s = -1; s <= 1; s += 2) {
@@ -647,7 +959,7 @@
       seed: seed + 'tank', fill: trim, stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.65
     });
     C.roundRect(ctx, 38, -122, 22, 34, 5, {
-      seed: seed + 'tea', fill: spec.cupBot || '#D9A863', stroke: null, hatch: 3, wash: 0.75
+      seed: seed + 'tea', fill: juice, stroke: null, hatch: 3, wash: 0.75
     });
     for (var b = 0; b < 6; b++) {
       C.dot(ctx, 43 + (b % 3) * 7, -104 + Math.floor(b / 3) * 9, 3, spec.pearl || '#8A5A2B', seed + 'tp' + b);
@@ -660,7 +972,7 @@
       seed: seed + 'torso', fill: steel, stroke: PAL.outline, lw: 3.4, hatch: 3.8, wash: 0.68
     });
     C.ellipse(ctx, 0, -78, 13, 13, {
-      seed: seed + 'core', fill: spec.cupBot || '#D9A863', stroke: PAL.outline, lw: 3, hatch: 2.8, wash: 0.8
+      seed: seed + 'core', fill: juice, stroke: PAL.outline, lw: 3, hatch: 2.8, wash: 0.8
     });
     for (var g = 0; g < 8; g++) {
       var ga = (g / 8) * Math.PI * 2;
@@ -683,7 +995,7 @@
       seed: seed + 'gun', fill: trim, stroke: PAL.outline, lw: 3, hatch: 3, wash: 0.72
     });
     C.ellipse(ctx, 63, -56 - swing * 2, 7, 9, {
-      seed: seed + 'muzzle', fill: spec.cupBot || '#D9A863', stroke: PAL.outline, lw: 2.6, hatch: 2.4, wash: 0.85
+      seed: seed + 'muzzle', fill: juice, stroke: PAL.outline, lw: 2.6, hatch: 2.4, wash: 0.85
     });
 
     // shoulder pads
@@ -693,14 +1005,46 @@
       });
     }
 
-    // the bear head, in metal
-    var headSpec = {
-      fur: steel, ear: steel, earInner: null, muzzle: trim,
-      nose: PAL.outline, straw: spec.straw || '#F2C14E'
-    };
     ctx.save();
     ctx.translate(0, -46);
-    drawHead(ctx, headSpec, dir, seed + 'mh', t);
+    if (spec.body === 'butterfly') {
+      // Butterball's bot keeps HIS face — antennae, specs and all — sitting
+      // ON the shoulders, exactly where the bear's metal head goes
+      var mhy = -86;
+      for (var ma = -1; ma <= 1; ma += 2) {
+        C.arc(ctx, ma * 14, mhy - 22, 13, ma > 0 ? -Math.PI * 0.9 : -Math.PI * 0.1,
+          ma > 0 ? -Math.PI * 0.1 : -Math.PI * 0.9, {
+            seed: seed + 'mant' + ma, stroke: trim, lw: 3.4, wob: 0.8, passes: 1
+          });
+        C.dot(ctx, ma * 25, mhy - 30, 4, trim, seed + 'mantb' + ma);
+      }
+      C.ellipse(ctx, 0, mhy, 30, 28, {
+        seed: seed + 'mbh', fill: steel, stroke: PAL.outline, lw: 3.2, hatch: 3.6, wash: 0.7
+      });
+      // a bolted neck plate, so the head reads as part of the machine
+      C.roundRect(ctx, -13, mhy + 22, 26, 14, 4, {
+        seed: seed + 'mneck', fill: dark, stroke: PAL.outline, lw: 2.6, hatch: 2.8, wash: 0.75
+      });
+      if (dir !== 'up') {
+        for (var me = -1; me <= 1; me += 2) {
+          C.dot(ctx, me * 11, mhy - 2, 5, spec.eye || '#7A4A2A', seed + 'me' + me);
+          C.dot(ctx, me * 11, mhy - 2, 2.6, PAL.outline, seed + 'mp' + me);
+          C.ellipse(ctx, me * 11, mhy - 2, 9, 9, {
+            seed: seed + 'mg' + me, stroke: spec.glasses || trim, lw: 2.6, wob: 0.6
+          });
+        }
+        C.arc(ctx, 0, mhy + 11, 6, Math.PI * 0.1, Math.PI * 0.9, {
+          seed: seed + 'msm', stroke: PAL.outline, lw: 2.2, wob: 0.5, passes: 1
+        });
+      }
+    } else {
+      // the bear head, in metal
+      var headSpec = {
+        fur: steel, ear: steel, earInner: null, muzzle: trim,
+        nose: PAL.outline, straw: spec.straw || '#F2C14E'
+      };
+      drawHead(ctx, headSpec, dir, seed + 'mh', t);
+    }
     ctx.restore();
   }
 
@@ -710,7 +1054,7 @@
     var base = W.CHARS[charKey] || W.CHARS.bobby;
     var spec = tinted(base, tint);
     var suit = W.SUITS[suitKey] || W.SUITS.none;
-    var body = (suit.overrideBody && charKey === 'bobby') ? suit.overrideBody : spec.body;
+    var body = (suit.overrideBody && isHero(charKey)) ? suit.overrideBody : spec.body;
     var tile = TILES[body] || TILES.cup;
 
     var cv = C.offscreen(tile.w, tile.h);
@@ -722,11 +1066,20 @@
     ctx.save();
     ctx.translate(tile.ax, tile.ay);
     if (body === 'butterfly') {
+      spec.suit = suit;                    // Butterball can wear the outfits too
       drawButterfly(ctx, spec, dir, seed, t, (frame % 4) / 3);
     } else if (body === 'pup') {
       drawPup(ctx, spec, dir, seed, t, frame);
     } else if (body === 'person') {
       drawPerson(ctx, spec, dir, seed, t, swing);
+    } else if (body === 'ghost') {
+      drawGhost(ctx, spec, dir, seed, t);
+    } else if (body === 'spider') {
+      drawSpider(ctx, spec, dir, seed, t, frame);
+    } else if (body === 'scaly') {
+      drawScaly(ctx, spec, dir, seed, t + frame * 0.4);
+    } else if (body === 'dino') {
+      drawDino(ctx, spec, dir, seed, t, frame);
     } else if (body === 'pom') {
       drawPom(ctx, spec, dir, seed, t);
     } else if (body === 'mech') {
@@ -788,7 +1141,7 @@
     opts = opts || {};
     var charKey = opts.char || 'bobby';
     var spec = W.CHARS[charKey] || W.CHARS.bobby;
-    var suitKey = (charKey === 'bobby' && opts.suit) ? opts.suit : 'none';
+    var suitKey = (isHero(charKey) && opts.suit) ? opts.suit : 'none';
     var dir = opts.dir || 'down';
     var t = opts.t || 0;
     var hopT = opts.hopT || 0;
@@ -810,6 +1163,8 @@
 
     var got = tile(charKey, opts.tint, suitKey, dir, frame);
     var sc = opts.scale || 1;
+    var suitDef0 = W.SUITS[suitKey] || W.SUITS.none;
+    var body = (suitDef0.overrideBody && isHero(charKey)) ? suitDef0.overrideBody : spec.body;
 
     ctx.save();
     var alpha = opts.alpha == null ? 1 : opts.alpha;
@@ -828,12 +1183,61 @@
     if (opts.spin) ctx.rotate(opts.spin);
     ctx.scale(sc / squash, sc * squash);
     var suitDef = W.SUITS[suitKey] || W.SUITS.none;
-    if (opts.neck && !suitDef.overrideBody) {
+
+    /* The lab potion: eight extra legs sprout behind whoever drank it. They
+     * are stroked live rather than baked, because they wiggle — the same
+     * trick the long neck uses. */
+    if (opts.legs8) {
+      var g8 = opts.legs8;
+      // a butterfly's wings would hide legs attached high up, so his sprout
+      // from lower down the body
+      var hipY = -got.tile.ay * (body === 'butterfly' ? 0.18 : 0.34);
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      for (var pass = 0; pass < 2; pass++) {
+        // spider-purple, so it reads as the potion rather than spare limbs
+        ctx.strokeStyle = pass ? '#6B4A7A' : PAL.outline;
+        ctx.lineWidth = pass ? 5.5 : 9;
+        for (var sd8 = -1; sd8 <= 1; sd8 += 2) {
+          for (var l8 = 0; l8 < 4; l8++) {
+            var reach = (36 + l8 * 15) * g8;
+            var wig = Math.sin(t * 5 + l8 * 1.15 + (sd8 > 0 ? 0 : 1.7)) * 6 * g8;
+            var hx8 = sd8 * 7, hy8 = hipY + l8 * 6;
+            // the knee rides high — that arch is what makes it a spider
+            var kx8 = sd8 * (reach * 0.66), ky8 = hy8 - (30 + l8 * 4) * g8 + wig;
+            var fx8 = sd8 * reach, fy8 = -2 - l8 * 1.5 + wig * 0.4;
+            ctx.beginPath();
+            ctx.moveTo(hx8, hy8);
+            ctx.lineTo(kx8, ky8);
+            ctx.lineTo(fx8, fy8);
+            ctx.stroke();
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    if (opts.neck && !suitDef.overrideBody && body !== 'cup') {
+      /* Bodies without a neck (a round butterfly, say) can't be split at
+       * the chin without looking like two of themselves — they just go
+       * gloriously, wobblingly TALL instead. */
+      var st3 = 1 + opts.neck / 115;      // tall and silly, still on screen
+      ctx.save();
+      ctx.translate(0, got.tile.ay);
+      ctx.scale(1, st3);
+      ctx.translate(0, -got.tile.ay);
+      ctx.drawImage(got.img, -got.tile.ax, -got.tile.ay);
+      ctx.restore();
+    } else if (opts.neck && !suitDef.overrideBody) {
       /* Long-Neck Bobby: the martian ice cream stretches him. The tile is
        * drawn twice — body low, head high — with a stretched slice of the
        * body colour joining them, so no new pose has to be baked. */
       var n = opts.neck;
-      var headCut = got.tile.ay - 70;          // the cut sits just under the chin
+      // where the chin is depends on the body — a butterfly's head IS its
+      // body, so its cut sits higher up the tile
+      var CUT = { cup: 70, butterfly: 22, person: 62 };
+      var headCut = got.tile.ay - (CUT[body] || 70);
       ctx.save();
       ctx.beginPath();
       ctx.rect(-got.tile.ax, -got.tile.ay + headCut, got.tile.w, got.tile.h);
@@ -843,7 +1247,7 @@
       ctx.save();
       // cover the stump the head left behind, then run the neck up to it
       var baseY = -got.tile.ay + headCut;
-      ctx.fillStyle = spec.muzzle || '#E9D6AE';
+      ctx.fillStyle = spec.muzzle || spec.fur || '#E9D6AE';
       ctx.beginPath();
       ctx.ellipse(0, baseY + 2, 20, 11, 0, 0, Math.PI * 2);
       ctx.fill();

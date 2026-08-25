@@ -14,10 +14,32 @@
   }
   window.addEventListener('resize', resize);
 
-  function freshState() {
+  /* Which character the player is right now. Everything that draws the
+   * player asks this instead of hardcoding 'bobby'. */
+  W.heroChar = function () {
+    return (W.game && W.game.state && W.game.state.hero) || 'bobby';
+  };
+
+  /* The pet roster: two heroes, two pets, both can tag along. */
+  W.pets = {
+    all: function () {
+      var ps = (W.game.state.pets) || {};
+      return Object.keys(ps).filter(function (k) { return !!ps[k]; });
+    },
+    get: function (key) { return (W.game.state.pets || {})[key] || null; },
+    any: function () { return W.pets.all().length > 0; },
+    adopt: function (key, name) {
+      if (!W.game.state.pets) W.game.state.pets = {};
+      W.game.state.pets[key] = { name: name, home: null, fedDay: 0 };
+    }
+  };
+
+  function freshState(hero) {
+    hero = hero || 'bobby';
     return {
+      hero: hero,
       suit: 'none',
-      room: 'living',
+      room: hero === 'butterball' ? 'home2' : 'living',
       visited: {},
       tray: [],
       canWater: 0,
@@ -50,9 +72,10 @@
       mail: {},              // 'day:boxIndex' -> read
       crystalsFound: {},     // crystal type -> count ever found
       weather: 'sunny',      // rolled per day
-      pet: null,             // { name } once adopted
-      petHome: null,         // a room where the pet waits, or null = following
-      petFedDay: 0,
+      pets: {},              // key -> { name, home, fedDay }; two are possible
+      ghosts: {},            // haunted-house ghosts brought back to colour
+      coaster: [],           // the roller-coaster the kid assembled
+      arcade: {},            // best scores per cabinet
       friendship: {},        // friend -> hearts (0..3)
       decor: {},             // room -> [prop kinds placed]
       saveSalt: Math.floor(Math.random() * 1e9),   // varies weather etc. per game
@@ -187,7 +210,11 @@
       if (firstOver && W.audio) W.audio.play('win');
       G.idea('sleepover');
     } else {
-      G.banner = { title: 'Day ' + G.state.day, sub: ideas };
+      var IDEA_ICONS = { cook: 'friedEgg', trix: 'heart', crystal: 'crystal',
+                         fly: 'tinyUfo', shift: 'vanilla', sleepover: 'moon',
+                         boba: 'boba', love: 'heart' };
+      G.banner = { title: 'Day ' + G.state.day, sub: ideas,
+                   icons: G.state.ideas.list.map(function (i2) { return IDEA_ICONS[i2.id]; }) };
     }
     G.bannerT = 0;
     if (W.save) W.save.auto();
@@ -315,7 +342,7 @@
     // opaque overlays fully cover the room — skip drawing it underneath
     if (G.scene && G.scene.draw && !(G.overlay && G.overlay.opaque)) G.scene.draw(ctx);
     if (G.overlay && G.overlay.draw) G.overlay.draw(ctx);
-    if (G.banner) W.drawBanner(ctx, G.banner.title, G.banner.sub, G.bannerT);
+    if (G.banner) W.drawBanner(ctx, G.banner.title, G.banner.sub, G.bannerT, G.banner.icons);
 
     if (G.fade > 0) {
       ctx.save();
@@ -391,6 +418,9 @@
     G.register('race',    W.sceneRace);
     G.register('mars',    W.sceneMars);
     G.register('snow',    W.sceneSnow);
+    G.register('castle',  W.sceneCastle);
+    G.register('coaster', W.sceneCoaster);
+    G.register('arcade',  W.sceneArcade);
   }
 
   function boot() {
@@ -410,7 +440,8 @@
       if (h.clock) G.state.clock = +h.clock;
       if (h.treehouse) G.state.builtTreehouse = true;
       if (h.weather) { G.state.weather = h.weather; G.state.weatherDay = G.state.day; }
-      if (h.pet) G.state.pet = { name: 'Mochi' };
+      if (h.pet) G.state.pets = { mochi: { name: 'Mochi', home: null, fedDay: 0 } };
+      if (h.hero) { G.state.hero = h.hero; if (!h.room) G.state.room = h.hero === 'butterball' ? 'home2' : 'living'; }
       if (h.crystals) { G.state.crystals = +h.crystals; G.state.crystalsFound = { sunstone: 2, heartgem: 2 }; }
       if (h.dark) G.state.lights[h.room || 'living'] = false;
       if (h.party) G.state.party = h.party.split(',');
@@ -429,7 +460,15 @@
       // dev shortcuts do NOT autosave over a real game unless asked
       if (h.save) G.saveOk = true;
 
-      if (h.scene === 'snow') {
+      if (h.scene === 'arcade') {
+        G.go('arcade', { game: h.game || 'lob' });
+      } else if (h.scene === 'coaster') {
+        G.go('coaster', { mode: h.mode || 'build' });
+      } else if (h.scene === 'castle') {
+        G.go('castle');
+      } else if (h.map) {
+        G.go('vehicle', { vehicle: h.vehicle || 'balloon', map: h.map });
+      } else if (h.scene === 'snow') {
         G.go('snow');
       } else if (h.scene === 'mars') {
         G.go('mars');
@@ -439,7 +478,7 @@
       } else if (h.scene === 'vehicle') {
         G.go('vehicle', { vehicle: h.vehicle || 'ufo' });
       } else if (h.scene === 'mission') {
-        G.go('mission', { mission: h.mission || 'megatron' });
+        G.go('mission', { mission: h.mission || 'megatron', from: h.from });
       } else if (h.scene === 'dive') {
         G.go('dive', { site: h.site || 'CAVE' });
       } else if (h.scene === 'recipes') {

@@ -25,6 +25,7 @@
   };
 
   var WALK = 158, RUN = 265;
+  W.WALK_SPEED = WALK;
   var HOP_WALK = 0.34, HOP_RUN = 0.23;
 
   W.Actor = function (o) {
@@ -37,6 +38,7 @@
     this.y = o.y || 0;
     this.dir = o.dir || 'down';
     this.speed = o.speed || WALK;
+    this.runSpeed = o.runSpeed || RUN * (this.speed / WALK);
     this.scale = o.scale || 1;
     this.hopT = 0;
     this.moving = false;
@@ -73,7 +75,7 @@
     else if (ay !== 0) this.dir = ay > 0 ? 'down' : 'up';
 
     var len = Math.hypot(ax, ay) || 1;
-    var sp = (this.running ? RUN : this.speed) * dt;
+    var sp = (this.running ? this.runSpeed : this.speed) * dt;
     var nx = this.x + (ax / len) * sp;
     var ny = this.y + (ay / len) * sp;
 
@@ -143,6 +145,7 @@
       noShadow: jl > 0,
       held: this.isPlayer ? W.game.state.held : null,
       neck: this.isPlayer && W.neckStretch ? W.neckStretch() : 0,
+      legs8: this.isPlayer && W.spiderLegs ? W.spiderLegs() : 0,
       spin: this.isPlayer && W.game.bobaFx && W.game.bobaFx.kind === 'brainfreeze'
         ? Math.sin(W.game.t * 34) * 0.055 : 0
     });

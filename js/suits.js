@@ -12,15 +12,17 @@
 
   W.SUITS = {
     none: {
-      name: 'Just Bobby',
+      name: 'Just Me', names: { bobby: 'Just Bobby', butterball: 'Just Butterball' },
       blurb: 'Soft, round, and full of boba.',
+      blurbs: { bobby: 'Soft, round, and full of boba.',
+                butterball: 'Fuzzy, flappy, and full of beans.' },
       unlocks: 'Being extremely cuddly',
       abilities: [],
       arms: null, legs: null, hat: null
     },
 
     chef: {
-      name: 'Chef Bobby',
+      name: 'Chef Outfit', short: 'Chef',
       blurb: 'Now he can hold a whisk!',
       unlocks: 'Cooking, and working the shop',
       abilities: ['cook', 'serve'],
@@ -30,7 +32,7 @@
     },
 
     racer: {
-      name: 'Racer Bobby',
+      name: 'Racer Outfit', short: 'Racer',
       blurb: 'Vroom vroom! Zero to boba in 3 seconds.',
       unlocks: 'Driving the car',
       abilities: ['drive'],
@@ -40,7 +42,7 @@
     },
 
     builder: {
-      name: 'Builder Bobby',
+      name: 'Builder Outfit', short: 'Builder',
       blurb: 'Hard hat on. Let\'s build something!',
       unlocks: 'Building the treehouse',
       abilities: ['build'],
@@ -50,9 +52,15 @@
     },
 
     mech: {
-      name: 'Boba Bear Bot',
-      blurb: 'Transforms into a robot — or a boba cart.',
+      name: 'Bot Suit',
+      names: { bobby: 'Boba Bear Bot', butterball: 'Butter Bot' },
+      shorts: { bobby: 'Boba Bot', butterball: 'Butter Bot' },
+      blurb: 'Transforms into a robot — or a stand on wheels.',
+      blurbs: { bobby: 'Transforms into a robot — or a boba cart.',
+                butterball: 'Transforms into a robot — or a lemonade wagon.' },
       unlocks: 'Transforming, and the boba gun',
+      unlockSet: { bobby: 'Transforming, and the boba gun',
+                   butterball: 'Transforming, and the lemonade blaster' },
       abilities: ['transform', 'battle'],
       overrideBody: 'mech',          // drawn as the robot, not as a cup
       forms: ['robot', 'cart']
@@ -60,6 +68,37 @@
   };
 
   W.SUIT_ORDER = ['none', 'chef', 'racer', 'builder', 'mech'];
+
+  /* What this outfit is called for whoever is playing: the same closet, but
+   * Bobby's bot is the Boba Bear Bot and Butterball's is the Butter Bot. */
+  W.suitName = function (key) {
+    var s = W.SUITS[key] || W.SUITS.none;
+    var hero = W.heroChar ? W.heroChar() : 'bobby';
+    return (s.names && s.names[hero]) || s.name;
+  };
+  W.suitBlurb = function (key) {
+    var s = W.SUITS[key] || W.SUITS.none;
+    var hero = W.heroChar ? W.heroChar() : 'bobby';
+    return (s.blurbs && s.blurbs[hero]) || s.blurb;
+  };
+
+  /* The stand this hero's bot folds out into. */
+  W.suitUnlocks = function (key) {
+    var s = W.SUITS[key] || W.SUITS.none;
+    var hero = W.heroChar ? W.heroChar() : 'bobby';
+    return (s.unlockSet && s.unlockSet[hero]) || s.unlocks;
+  };
+
+  W.suitShort = function (key) {
+    var s = W.SUITS[key] || W.SUITS.none;
+    var hero = W.heroChar ? W.heroChar() : 'bobby';
+    if (key === 'none') return hero === 'butterball' ? 'Butterball' : 'Bobby';
+    return (s.shorts && s.shorts[hero]) || s.short || W.suitName(key);
+  };
+
+  W.standName = function () {
+    return (W.heroChar && W.heroChar() === 'butterball') ? 'lemonade wagon' : 'boba cart';
+  };
 
   /* Does Bobby's current outfit grant this ability? Stations call this
    * rather than comparing suit names. */

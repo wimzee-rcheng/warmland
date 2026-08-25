@@ -28,11 +28,40 @@
     var start = null;
     if (p.at) start = p.at;
     else {
+      var fromRoom = p.from || W.game.state.room;
       var home = S.map.pois.filter(function (q) {
-        return q.to && q.to.room === W.game.state.room;
+        return q.to && q.to.room === fromRoom;
       })[0] || S.map.pois[0];
       start = [home.x, home.y - 130];
       if (S.map.water) start = [home.x, home.y];
+      // a car belongs on the tarmac: start it on the road nearest its pad
+      // rather than hovering in the field above it
+      if (S.v.ground && S.map.roads) {
+        var bd = 1e9, best = null;
+        for (var r = 0; r < S.map.roads.length; r++) {
+          var road = S.map.roads[r];
+          var pt = road.y !== undefined ? [home.x, road.y] : [road.x, home.y];
+          var dd = Math.hypot(pt[0] - home.x, pt[1] - home.y);
+          if (dd < bd) { bd = dd; best = pt; }
+        }
+        if (best) {
+          // ...but not parked on somebody else's pad, or you climb in and are
+          // immediately offered a destination you never drove to
+          for (var nudge = 0; nudge < 8; nudge++) {
+            var clash = null;
+            for (var q = 0; q < S.map.pois.length; q++) {
+              var other = S.map.pois[q];
+              if (other === home) continue;
+              if (Math.hypot(best[0] - other.x, best[1] - other.y) < other.r + 30) {
+                clash = other; break;
+              }
+            }
+            if (!clash) break;
+            best[0] += best[0] >= clash.x ? 60 : -60;
+          }
+          start = best;
+        }
+      }
     }
     // Flying vehicles hover above their pad; the submarine dives in below it.
     if (!p.at && S.map.water) start[1] = start[1] + 300;
@@ -48,6 +77,27 @@
     if (S.v.draw.warm) S.v.draw.warm();     // all 8 phase tiles, behind the fade
   };
 
+  /* A pad's `only` is one vehicle name or a list of them. */
+  function allows(only, vehicle) {
+    if (!only) return true;
+    return only.indexOf ? (typeof only === 'string' ? only === vehicle
+                                                    : only.indexOf(vehicle) >= 0)
+                        : only === vehicle;
+  }
+  function onlyName(only) {
+    var k = (typeof only === 'string') ? only : only[0];
+    return W.VEHICLES[k] ? W.VEHICLES[k].name : 'right ride';
+  }
+
+  /* Which outfit key grants an ability — for naming it on a locked pad. */
+  function suitKeyOf(ability) {
+    for (var i = 0; i < W.SUIT_ORDER.length; i++) {
+      var k = W.SUIT_ORDER[i];
+      if (W.SUITS[k].abilities.indexOf(ability) >= 0) return k;
+    }
+    return 'chef';
+  }
+
   /* Wrong-vehicle pads are still detected — they show a locked prompt so the
    * player learns WHY nothing happens, instead of getting silence. */
   function nearestPOI() {
@@ -56,7 +106,7 @@
       var p = S.map.pois[i];
       if (Math.hypot(S.x - p.x, S.y - p.y) < p.r + 14) {
         // a pad can want a particular vehicle, a particular outfit, or both
-        S.poiLocked = !!(p.only && p.only !== S.vehicle) ||
+        S.poiLocked = !!(p.only && !allows(p.only, S.vehicle)) ||
                       !!(p.needs && !W.can(p.needs));
         return p;
       }
@@ -67,10 +117,10 @@
   function arrive(p) {
     var G = W.game;
     if (S.poiLocked) {
-      if (p.only && p.only !== S.vehicle) {
-        W.say('Only the ' + W.VEHICLES[p.only].name + ' can go to ' + p.label + '.');
+      if (p.only && !allows(p.only, S.vehicle)) {
+        W.say('Only a ' + onlyName(p.only) + ' can go to ' + p.label + '.');
       } else {
-        W.say('That is for ' + W.suitFor(p.needs).name + '! Try the magic closet.');
+        W.say('That needs the ' + W.suitName(suitKeyOf(p.needs)) + '! Try the magic closet.');
       }
       return;
     }
@@ -90,6 +140,7 @@
     if (p.to.race) { G.fadeTo('race'); return; }
     if (p.to.mars) { G.fadeTo('mars'); return; }
     if (p.to.snow) { G.fadeTo('snow'); return; }
+    if (p.to.castle) { G.fadeTo('castle'); return; }
     if (p.to.room) { G.fadeTo('house', { room: p.to.room }); return; }
     if (p.to.mission) { G.fadeTo('mission', { mission: p.to.mission }); return; }
     if (p.to.map) {
@@ -101,7 +152,15 @@
         next = S.prevVehicle || 'ufo';
         S.prevVehicle = null;
       }
-      G.fadeTo('vehicle', { vehicle: next, map: p.to.map });
+      // step out of the portal standing ON the pad that leads back, so the
+      // way home is the first thing you see
+      var dest = W.MAPS[p.to.map], back = null, here = S.mapId;
+      if (dest) {
+        back = dest.pois.filter(function (q) { return q.to && q.to.map === here; })[0];
+      }
+      G.fadeTo('vehicle', {
+        vehicle: next, map: p.to.map, at: back ? [back.x, back.y] : null
+      });
       return;
     }
   }
@@ -120,8 +179,13 @@
     // the car belongs on the roads — grass is slow going, and bumpy with it
     var grip = 1;
     S.offRoad = false;
-    if (v.ground && S.mapId === 'neighborhood') {
-      var onRoad = Math.abs(S.y - 690) < 42 || Math.abs(S.x - 980) < 42;
+    if (v.ground && S.map.roads) {
+      var onRoad = false;
+      for (var rd = 0; rd < S.map.roads.length; rd++) {
+        var road = S.map.roads[rd];
+        if (road.y !== undefined && Math.abs(S.y - road.y) < 42) onRoad = true;
+        if (road.x !== undefined && Math.abs(S.x - road.x) < 42) onRoad = true;
+      }
       if (!onRoad) { grip = 0.45; S.offRoad = true; }
     }
     S.speed = Math.hypot(S.vx, S.vy);
@@ -211,7 +275,7 @@
     ctx.rect(r.clip[0], r.clip[1], r.clip[2], r.clip[3]);
     ctx.clip();
     W.drawChar(ctx, r.x, r.y, {
-      char: 'bobby', suit: G.state.suit, dir: 'down', t: G.t, scale: r.scale, noShadow: true
+      char: W.heroChar(), suit: G.state.suit, dir: 'down', t: G.t, scale: r.scale, noShadow: true
     });
     ctx.restore();
     if (S.v.glass) S.v.glass(ctx, 0, 0, 1);
@@ -234,19 +298,22 @@
     }
 
     // the pet rides shotgun
-    if (G.state.pet) {
+    if (W.pets && W.pets.any()) {
       W.drawChar(ctx, 30, r.y + 12, {
         char: 'pet', dir: 'down', t: G.t,
         scale: r.scale * 0.7, noShadow: true
       });
     }
-    // passengers peeking out
+    // passengers peeking out — big enough to actually spot, sat either side
+    // of whoever is driving rather than squashed into a corner
     G.state.party.forEach(function (key, i) {
       var f = W.FRIENDS[key];
       if (!f) return;
-      W.drawChar(ctx, -34 + i * 24, r.y + 10, {
+      var side = (i % 2 ? 1 : -1);
+      var px2 = r.x + side * (22 + Math.floor(i / 2) * 18);
+      W.drawChar(ctx, px2, r.y + 6, {
         char: f.char, tint: f.tint, dir: 'down', t: G.t + i,
-        scale: r.scale * 0.62, noShadow: true
+        scale: r.scale * 0.82, noShadow: true
       });
     });
     ctx.restore();
@@ -268,9 +335,9 @@
 
     if (S.poi) {
       var label = S.poiLocked
-                  ? (S.poi.only && S.poi.only !== S.vehicle
-                      ? 'Needs the ' + W.VEHICLES[S.poi.only].name
-                      : 'Needs ' + W.suitFor(S.poi.needs).name) :
+                  ? (S.poi.only && !allows(S.poi.only, S.vehicle)
+                      ? 'Needs a ' + onlyName(S.poi.only)
+                      : 'Needs the ' + W.suitName(suitKeyOf(S.poi.needs))) :
                   S.poi.kind === 'lake' ? 'Dive in' :
                   S.poi.kind === 'dive' ? 'Explore the ' + S.poi.label.toLowerCase() :
                   'Stop at ' + (W.poiLabel ? W.poiLabel(S.poi) : S.poi.label);

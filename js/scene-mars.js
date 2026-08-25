@@ -259,6 +259,13 @@
 
   // ------------------------------------------------------------- the scene
 
+  /* Back over Mars itself. */
+  function backToMap() {
+    W.game.fadeTo('vehicle', {
+      vehicle: 'ufo', map: 'space', at: W.mapPadAt('space', 'mars')
+    });
+  }
+
   S.enter = function () {
     S.t = 0;
     S.x = 300; S.y = 780;
@@ -345,9 +352,10 @@
     }
 
     W.drawChar(ctx, ins.px, ins.py, {
-      char: 'bobby', suit: G.state.suit, dir: ins.dir, t: G.t,
+      char: W.heroChar(), suit: G.state.suit, dir: ins.dir, t: G.t,
       moving: ins.moving, hopT: S.t * 3, scale: 1,
-      neck: W.neckStretch ? W.neckStretch() : 0
+      neck: W.neckStretch ? W.neckStretch() : 0,
+      legs8: W.spiderLegs ? W.spiderLegs() : 0
     });
 
     W.fx.draw(ctx);
@@ -430,10 +438,10 @@
       else if (S.atDome) {
         S.enterDome();
       } else if (S.atShip) {
-        G.fadeTo('vehicle', { vehicle: 'ufo', map: 'space' });
+        backToMap();
       }
     }
-    if (W.input.hit('back')) G.fadeTo('vehicle', { vehicle: 'ufo', map: 'space' });
+    if (W.input.hit('back')) backToMap();
   };
 
   S.draw = function (ctx) {
@@ -468,7 +476,7 @@
     ctx.drawImage(roverTile(ph), -75, -80);
     ctx.restore();
     W.drawChar(ctx, sx, sy - 26, {
-      char: 'bobby', suit: G.state.suit, dir: 'down', t: G.t, scale: 0.4, noShadow: true
+      char: W.heroChar(), suit: G.state.suit, dir: 'down', t: G.t, scale: 0.4, noShadow: true
     });
     W.fx.draw(ctx);
 

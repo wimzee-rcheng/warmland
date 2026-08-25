@@ -135,7 +135,7 @@
     }
   }};
 
-  P.closet = { w: 86, d: 30, h: 108, draw: function (ctx, x, y, s) {
+  P.closet = { pad: 44, w: 86, d: 30, h: 108, draw: function (ctx, x, y, s) {
     shadow(ctx, x, y, 86, 30);
     // magic glow
     var gr = ctx.createRadialGradient(x + 43, y - 30, 8, x + 43, y - 30, 96);
@@ -247,7 +247,7 @@
 
   // ------------------------------------------------------- outdoor scenery
 
-  P.house = { w: 250, d: 60, h: 210, draw: function (ctx, x, y, s) {
+  P.house = { pad: 26, w: 250, d: 60, h: 210, draw: function (ctx, x, y, s) {
     shadow(ctx, x, y, 250, 60);
     var fy = y + 60 - 210;                         // top of the walls
     C.rect(ctx, x, fy + 70, 250, 140, {
@@ -280,7 +280,7 @@
     });
   }};
 
-  P.tree = { w: 64, d: 40, h: 130, draw: function (ctx, x, y, s) {
+  P.tree = { pad: 30, w: 64, d: 40, h: 130, draw: function (ctx, x, y, s) {
     shadow(ctx, x, y, 64, 40);
     C.rect(ctx, x + 24, y - 70, 16, 92, {
       seed: s + 't', fill: PAL.woodDk, stroke: PAL.outline, lw: 2.8, hatch: 3.4, wash: 0.65
@@ -299,7 +299,7 @@
     }
   }};
 
-  P.mailbox = { w: 22, d: 22, h: 58, draw: function (ctx, x, y, s, tint) {
+  P.mailbox = { pad: 24, w: 22, d: 22, h: 58, draw: function (ctx, x, y, s, tint) {
     shadow(ctx, x, y, 22, 22);
     C.line(ctx, x + 11, y + 10, x + 11, y - 34, { seed: s + 'p', stroke: PAL.woodDk, lw: 6, wob: 0.8 });
     // the box, rounded like a real US mailbox, with a slot and a plate
@@ -762,7 +762,7 @@
 
   // ------------------------------------------------------------ treehouse
 
-  P.treehouse = { w: 190, d: 70, h: 240, draw: function (ctx, x, y, s) {
+  P.treehouse = { pad: 34, w: 190, d: 70, h: 240, draw: function (ctx, x, y, s) {
     shadow(ctx, x, y, 190, 70);
     // trunk
     C.rect(ctx, x + 78, y - 90, 34, 160, {
@@ -921,6 +921,111 @@
   }
   W.drawBalloon = phaseBake(paintBalloon, 180, 215, 90, 145, 8, (Math.PI * 2) / 1.6);
 
+  /* Butterball's balloon: an egg-shaped envelope in blue-and-yellow
+   * patchwork stripes over a blue-striped basket, straight off his page. */
+  function paintBalloon2(ctx, t) {
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = PAL.outline;
+    ctx.beginPath(); ctx.ellipse(0, 44, 44, 11, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    var sway = Math.sin(t * 1.6) * 3;
+    // the envelope: a tall egg, wider at the top than a sphere
+    C.ellipse(ctx, sway * 0.4, -76, 62, 66, {
+      seed: 'b2env', fill: '#F2E14E', stroke: '#2E5FB5', lw: 4, hatch: 5, wash: 0.72
+    });
+    // blue patchwork stripes, clipped to the envelope
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(sway * 0.4, -76, 60, 64, 0, 0, Math.PI * 2);
+    ctx.clip();
+    for (var i = -3; i <= 3; i++) {
+      var sx = sway * 0.4 + i * 22;
+      C.poly(ctx, [[sx - 8, -142], [sx + 3, -142], [sx + 11, -12], [sx, -12]], {
+        seed: 'b2str' + i, fill: '#2E5FB5', stroke: null, hatch: 4, wash: 0.78, fillAlpha: 0.9
+      });
+    }
+    for (var r2 = 0; r2 < 3; r2++) {
+      C.arc(ctx, sway * 0.4, -76, 60 - r2 * 22, Math.PI * 0.05, Math.PI * 0.95, {
+        seed: 'b2ring' + r2, stroke: '#2E5FB5', lw: 3, wob: 1.6, passes: 1, strokeAlpha: 0.55
+      });
+    }
+    ctx.restore();
+
+    // ropes down to the basket
+    for (var rp = -1; rp <= 1; rp += 2) {
+      C.line(ctx, rp * 30 + sway * 0.4, -26, rp * 20, 6, {
+        seed: 'b2rope' + rp, stroke: '#2E5FB5', lw: 2.6, wob: 0.8
+      });
+    }
+    // the blue-striped basket
+    C.rect(ctx, -26, 4, 52, 32, {
+      seed: 'b2bask', fill: PAL.white, stroke: PAL.outline, lw: 3.2, hatch: 3.4, wash: 0.85, fillAlpha: 0.3
+    });
+    for (var bs = 0; bs < 3; bs++) {
+      C.rect(ctx, -22 + bs * 17, 8, 9, 24, {
+        seed: 'b2bs' + bs, fill: '#2E5FB5', stroke: null, hatch: 2.8, wash: 0.85, fillAlpha: 0.9
+      });
+    }
+    ctx.restore();
+  }
+  W.drawBalloon2 = phaseBake(paintBalloon2, 180, 215, 90, 145, 8, (Math.PI * 2) / 1.6);
+
+  /* The popcorn car: a striped popcorn box on two wheels with the popcorn
+   * bouncing out of the top as it drives. */
+  function paintPopcar(ctx, t) {
+    ctx.save();
+    ctx.globalAlpha = 0.14;
+    ctx.fillStyle = PAL.outline;
+    ctx.beginPath(); ctx.ellipse(0, 26, 58, 12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // the box: a tapered tub, vertical red-and-white stripes
+    var box = [[-46, -52], [46, -52], [38, 20], [-38, 20]];
+    C.poly(ctx, box, {
+      seed: 'pcbox', fill: PAL.white, stroke: PAL.outline, lw: 3.4, hatch: 4, wash: 0.88, fillAlpha: 0.3
+    });
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(-46, -52); ctx.lineTo(46, -52); ctx.lineTo(38, 20); ctx.lineTo(-38, 20);
+    ctx.closePath();
+    ctx.clip();
+    for (var st2 = 0; st2 < 4; st2++) {
+      C.poly(ctx, [[-44 + st2 * 24, -54], [-32 + st2 * 24, -54],
+                   [-27 + st2 * 21, 22], [-38 + st2 * 21, 22]], {
+        seed: 'pcst' + st2, fill: '#D9402F', stroke: null, hatch: 3.4, wash: 0.82, fillAlpha: 0.9
+      });
+    }
+    ctx.restore();
+
+    // popcorn billowing out the top — bounces with the drive phase
+    var bob = Math.sin(t * 3) * 4;
+    var pops = [[-34, -62, 13], [-12, -76, 16], [12, -70, 14], [34, -58, 12], [0, -54, 11]];
+    for (var p = 0; p < pops.length; p++) {
+      C.ellipse(ctx, pops[p][0], pops[p][1] + bob * (p % 2 ? 1 : -1), pops[p][2], pops[p][2] * 0.82, {
+        seed: 'pcpop' + p, fill: '#FBF0C4', stroke: PAL.outline, lw: 2.4, hatch: 3, wash: 0.85
+      });
+    }
+    // a side door, like the drawing
+    C.rect(ctx, -30, -34, 22, 22, {
+      seed: 'pcdoor', stroke: PAL.outline, lw: 2.4, wob: 1, passes: 1
+    });
+
+    // two wheels, spokes turning with the phase
+    for (var w = -1; w <= 1; w += 2) {
+      var wx = w * 28, spin = t * 6;
+      C.ellipse(ctx, wx, 20, 15, 15, {
+        seed: 'pcwh' + w, fill: '#3B2A20', stroke: PAL.outline, lw: 2.8, hatch: 3, wash: 0.8
+      });
+      C.line(ctx, wx - Math.cos(spin) * 9, 20 - Math.sin(spin) * 9,
+                  wx + Math.cos(spin) * 9, 20 + Math.sin(spin) * 9,
+        { seed: 'pcsp' + w, stroke: PAL.steel, lw: 2.4, wob: 0.4, passes: 1 });
+    }
+    ctx.restore();
+  }
+  W.drawPopcar = phaseBake(paintPopcar, 170, 140, 85, 92, 8, Math.PI / 3);
+
   /* The submarine, for the lake. */
   function paintSub(ctx, t) {
     ctx.save();
@@ -991,8 +1096,74 @@
   }
   W.drawCart = phaseBake(paintCart, 176, 165, 88, 105, 1, 1);
 
+  /* Butterball's version: a lemonade wagon, with a big jug and a stack of
+   * cups on a wooden trolley. Same silhouette, entirely his own. */
+  function paintWagon(ctx, t) {
+    ctx.save();
+    ctx.globalAlpha = 0.14;
+    ctx.fillStyle = PAL.outline;
+    ctx.beginPath(); ctx.ellipse(0, 34, 60, 12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // wooden trolley body
+    C.roundRect(ctx, -56, -20, 112, 46, 6, {
+      seed: 'wagb', fill: '#C08A4E', stroke: PAL.outline, lw: 3.2, hatch: 3.8, wash: 0.7
+    });
+    for (var pl = 0; pl < 3; pl++) {
+      C.line(ctx, -50 + pl * 36, -18, -50 + pl * 36, 24,
+        { seed: 'wagp' + pl, stroke: '#8A5F38', lw: 2.4, wob: 0.8, passes: 1 });
+    }
+    // the big lemonade jug, with a tap and floating slices
+    C.roundRect(ctx, -34, -84, 52, 64, 10, {
+      seed: 'jug', fill: '#FFF3C4', stroke: PAL.outline, lw: 3.2, hatch: 3.4, wash: 0.55
+    });
+    C.roundRect(ctx, -29, -74, 42, 48, 7, {
+      seed: 'juice', fill: '#F2D64E', stroke: null, hatch: 3, wash: 0.8
+    });
+    for (var sl = 0; sl < 3; sl++) {
+      var sx = -22 + sl * 14, sy = -64 + (sl % 2) * 16;
+      C.dot(ctx, sx, sy, 5.5, '#FFF2A8', 'wsl' + sl);
+      C.arc(ctx, sx, sy, 5.5, 0, Math.PI * 2, {
+        seed: 'wslr' + sl, stroke: '#E8A03D', lw: 1.6, wob: 0.5, passes: 1
+      });
+    }
+    C.roundRect(ctx, -38, -86, 60, 10, 4, {
+      seed: 'jlid', fill: '#B9C3C9', stroke: PAL.outline, lw: 2.6, hatch: 2.6, wash: 0.78
+    });
+    C.line(ctx, 18, -34, 28, -34, { seed: 'wtap', stroke: PAL.outline, lw: 5, wob: 0.6 });
+    // cup stack
+    for (var c = 0; c < 4; c++) {
+      C.roundRect(ctx, 34, -40 - c * 8, 18, 12, 3, {
+        seed: 'wcup' + c, fill: PAL.white, stroke: PAL.outline, lw: 1.8, hatch: 2.4, wash: 0.85
+      });
+    }
+    // sign
+    C.roundRect(ctx, -54, -6, 62, 24, 4, {
+      seed: 'wsign', fill: '#F2D64E', stroke: PAL.outline, lw: 2.6, hatch: 3, wash: 0.8
+    });
+    C.text(ctx, 'LEMONADE', -23, 10, {
+      size: 10, align: 'center', color: PAL.outline, seed: 'wst'
+    });
+    for (var w2 = -1; w2 <= 1; w2 += 2) {
+      C.ellipse(ctx, w2 * 36, 28, 14, 14, {
+        seed: 'wwh' + w2, fill: '#3B2A20', stroke: PAL.outline, lw: 2.8, hatch: 3, wash: 0.8
+      });
+      C.dot(ctx, w2 * 36, 28, 4, PAL.steel, 'whb' + w2);
+    }
+    ctx.restore();
+  }
+  W.drawWagon = phaseBake(paintWagon, 176, 165, 88, 105, 1, 1);
+
+  /* Whichever stand this hero's bot folds out into. */
+  W.drawStand = function (ctx, x, y, sc, t) {
+    if (W.heroChar && W.heroChar() === 'butterball') W.drawWagon(ctx, x, y, sc, t);
+    else W.drawCart(ctx, x, y, sc, t);
+  };
+
   P.car     = { w: 150, d: 66, h: 70, draw: function (ctx, x, y, s) { W.drawCar(ctx, x + 75, y + 33, 1, 0); } };
   P.balloon = { w: 130, d: 60, h: 130, draw: function (ctx, x, y, s) { W.drawBalloon(ctx, x + 65, y + 30, 1, 0); } };
+  P.balloon2 = { w: 130, d: 60, h: 130, draw: function (ctx, x, y, s) { W.drawBalloon2(ctx, x + 65, y + 30, 1, 0); } };
+  P.popcar  = { w: 150, d: 66, h: 80, draw: function (ctx, x, y, s) { W.drawPopcar(ctx, x + 75, y + 33, 1, 0); } };
 
   /* A cosy pup tent for treehouse sleepovers. */
   P.tent = { w: 92, d: 54, h: 66, draw: function (ctx, x, y, s, tint) {
@@ -1052,7 +1223,7 @@
       size: 10, align: 'center', color: PAL.white, outline: 2, outlineColor: PAL.outline, seed: s + 't2'
     });
     // a pup peeking out (until adopted)
-    if (W.game && !W.game.state.pet) {
+    if (W.game && W.pets && !W.pets.get('mochi')) {
       C.ellipse(ctx, x + 30, y - 34, 11, 9, {
         seed: s + 'pup', fill: '#F2D5A0', stroke: PAL.outline, lw: 2, hatch: 2.4, wash: 0.8
       });
@@ -1165,6 +1336,551 @@
       size: 13, align: 'center', color: PAL.white,
       outline: 3, outlineColor: PAL.outline, seed: s + 't'
     });
+  }};
+
+  // ------------------------------------------------------- warmland 2
+
+  /* Butterball's home, straight off the page: a fat brown trunk with an
+   * arched door and two square yellow windows, under a huge green canopy
+   * with a round window up in the leaves. */
+  P.treehome = { pad: 42, w: 260, d: 90, h: 300,
+    // the trunk's flared base is all that touches the ground: a wide canopy
+    // must not become a wide invisible wall
+    foot: { dx: 44, dy: -6, w: 172, d: 30 },
+    draw: function (ctx, x, y, s) {
+    shadow(ctx, x + 32, y - 26, 196, 62);   // sits under the flared trunk
+    var cx = x + 130;
+
+    // the canopy: overlapping scribble-green blobs
+    var blobs = [[-86, -262, 78, 58], [0, -292, 96, 66], [88, -258, 76, 56],
+                 [-44, -232, 74, 52], [46, -230, 74, 52]];
+    for (var b = 0; b < blobs.length; b++) {
+      C.ellipse(ctx, cx + blobs[b][0], y + blobs[b][1], blobs[b][2], blobs[b][3], {
+        seed: s + 'lf' + b, fill: b % 2 ? PAL.grass : '#4E8F3A',
+        stroke: PAL.outline, lw: 3.4, hatch: 5, wash: 0.62
+      });
+    }
+    // the round window up in the leaves
+    C.ellipse(ctx, cx, y - 268, 30, 30, {
+      seed: s + 'rw', fill: '#F2E14E', stroke: '#2E5FB5', lw: 4, hatch: 3.4, wash: 0.85
+    });
+    C.line(ctx, cx - 30, y - 268, cx + 30, y - 268, { seed: s + 'rwh', stroke: '#2E5FB5', lw: 3, wob: 0.8 });
+    C.line(ctx, cx, y - 298, cx, y - 238, { seed: s + 'rwv', stroke: '#2E5FB5', lw: 3, wob: 0.8 });
+
+    // the trunk, flaring at the base
+    C.poly(ctx, [[cx - 52, y - 210], [cx + 52, y - 210], [cx + 86, y + 20], [cx - 86, y + 20]], {
+      seed: s + 'trunk', fill: '#C9A882', stroke: '#8A5F38', lw: 4, hatch: 5, wash: 0.7
+    });
+    for (var g2 = 0; g2 < 6; g2++) {
+      C.line(ctx, cx - 40 + g2 * 16, y - 200, cx - 58 + g2 * 22, y + 12, {
+        seed: s + 'grain' + g2, stroke: '#8A5F38', lw: 2, wob: 1.6, passes: 1, strokeAlpha: 0.5
+      });
+    }
+    // two square yellow windows
+    for (var w2 = 0; w2 < 2; w2++) {
+      var wx = cx - 38 + w2 * 50;
+      C.rect(ctx, wx, y - 180, 34, 34, {
+        seed: s + 'win' + w2, fill: '#F2E14E', stroke: '#2E5FB5', lw: 3.4, hatch: 3, wash: 0.85
+      });
+      C.line(ctx, wx, y - 163, wx + 34, y - 163, { seed: s + 'wh' + w2, stroke: '#2E5FB5', lw: 2.6, wob: 0.6 });
+      C.line(ctx, wx + 17, y - 180, wx + 17, y - 146, { seed: s + 'wv' + w2, stroke: '#2E5FB5', lw: 2.6, wob: 0.6 });
+    }
+    // the arched door with its little knob
+    C.arc(ctx, cx, y - 60, 34, Math.PI, Math.PI * 2, {
+      seed: s + 'door', fill: '#8A5F38', stroke: PAL.outline, lw: 3.6, hatch: 4, wash: 0.72
+    });
+    C.rect(ctx, cx - 34, y - 60, 68, 62, {
+      seed: s + 'doorb', fill: '#8A5F38', stroke: PAL.outline, lw: 3.6, hatch: 4, wash: 0.72
+    });
+    C.dot(ctx, cx + 22, y - 28, 4.4, '#2E5FB5', s + 'knob');
+  }};
+
+  /* The blue sign on a post from the drawing. */
+  P.blueSign = { w: 96, d: 18, h: 86, solid: false, draw: function (ctx, x, y, s, tint) {
+    C.line(ctx, x + 20, y + 10, x + 20, y - 50, { seed: s + 'p', stroke: '#2E5FB5', lw: 6, wob: 1 });
+    C.rect(ctx, x, y - 86, 92, 40, {
+      seed: s + 'b', fill: PAL.white, stroke: '#2E5FB5', lw: 4, hatch: 3.4, wash: 0.9, fillAlpha: 0.25
+    });
+    C.text(ctx, tint || 'HOME', x + 46, y - 60, {
+      size: 15, align: 'center', color: '#2E5FB5', seed: s + 't'
+    });
+  }};
+
+  /* A free-dino box, cousin of the fluff box. */
+  P.dinoBox = { w: 84, d: 44, h: 70, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y, 84, 44);
+    var top = y - 70;
+    C.roundRect(ctx, x, top + 12, 84, 58, 8, {
+      seed: s + 'bx', fill: '#C9A882', stroke: PAL.woodDk, lw: 3.2, hatch: 3.6, wash: 0.8
+    });
+    C.text(ctx, 'FREE', x + 42, top + 34, { size: 13, align: 'center', color: PAL.outline, seed: s + 't1' });
+    C.text(ctx, 'DINOS', x + 42, top + 52, { size: 13, align: 'center', color: PAL.outline, seed: s + 't2' });
+    // a little snout peeking over the rim
+    if (W.game && W.pets && !W.pets.get('cracker')) {
+      C.ellipse(ctx, x + 62, top + 6, 16, 12, {
+        seed: s + 'peek', fill: '#7FC46F', stroke: PAL.outline, lw: 2.4, hatch: 2.8, wash: 0.8
+      });
+      C.dot(ctx, x + 66, top + 2, 3, PAL.white, s + 'pe');
+      C.dot(ctx, x + 67, top + 2, 1.6, PAL.outline, s + 'pp');
+    }
+  }};
+
+  // ------------------------------------------------------- the skyscraper
+
+  /* Warmland 2's tower, growing stage by stage. Capped in height so the
+   * top always stays on screen — it is a skyline moment, not a puzzle. */
+  /* The tower, one art level per completed build stage:
+   *   0 pegged plot · 1 swept lot · 2 poured base · 3 steel frame · 4 done */
+  function towerAt(level) {
+    var H = [16, 20, 60, 258, 316][Math.min(level, 4)];
+    return { w: 230, d: 84, h: H, solid: level >= 2,
+      draw: function (ctx, x, y, s) {
+        shadow(ctx, x, y - (level >= 2 ? 40 : 0), 230, 84);
+        if (level <= 1) {
+          C.roundRect(ctx, x, y - 10, 230, 80, 6, {
+            seed: s + 'lot', fill: '#C9A882', stroke: '#8A5F38',
+            lw: 2.6, hatch: 4, wash: 0.5, fillAlpha: 0.5
+          });
+          if (level === 0) {
+            for (var p = 0; p < 4; p++) {
+              var px = x + 10 + (p % 2) * 206, py = y - 4 + Math.floor(p / 2) * 64;
+              C.line(ctx, px, py + 10, px, py - 14, { seed: s + 'pg' + p, stroke: PAL.woodDk, lw: 4, wob: 0.8 });
+            }
+          }
+          return;
+        }
+        // the poured base
+        C.rect(ctx, x, y - 34, 230, 104, {
+          seed: s + 'base', fill: '#C4BCAE', stroke: PAL.outline, lw: 3.4, hatch: 4, wash: 0.7
+        });
+        if (level === 2) return;
+
+        // steel girders: uprights, cross-beams, then the diagonal bracing
+        var floors = 6;
+        var topY = y - 34 - floors * 34;
+        W.drawGirders(ctx, x, y - 34, topY, 3, s);
+        if (level === 3) return;
+
+        W.drawGlazing(ctx, x, y - 34, topY, floors, 3, s);
+        C.rect(ctx, x + 92, y - 34 - 30, 46, 30, {
+          seed: s + 'door', fill: '#4A6FC4', stroke: PAL.outline, lw: 2.8, hatch: 3, wash: 0.8
+        });
+        C.line(ctx, x + 115, topY, x + 115, topY - 30, { seed: s + 'sp', stroke: PAL.steel, lw: 5, wob: 0.8 });
+        C.dot(ctx, x + 115, topY - 34, 6, '#E0455F', s + 'spt');
+        // the name rides ON the building — above the spire it ran off the top
+        C.text(ctx, 'THE BIG TOWER', x + 115, topY + 22, {
+          size: 13, align: 'center', color: PAL.white,
+          outline: 3, outlineColor: PAL.outline, seed: s + 'nm'
+        });
+      }
+    };
+  }
+
+  /* The glass goes in from the ground up, two floors at a time, so a kid
+   * carrying windows over watches the tower fill in band by band. */
+  W.drawGlazing = function (ctx, x, baseY, topY, floors, bands, s) {
+    var perBand = Math.ceil(floors / 3);
+    var done = Math.min(floors, perBand * bands);
+    for (var f = 0; f < done; f++) {
+      var fy = baseY - (f + 1) * 34;
+      C.rect(ctx, x + 16, fy, 198, 34, {
+        seed: s + 'clad' + f, fill: '#B9C3C9', stroke: PAL.outline,
+        lw: 3, hatch: 4.4, wash: 0.7, fillAlpha: 0.85
+      });
+      for (var wc = 0; wc < 4; wc++) {
+        C.rect(ctx, x + 30 + wc * 48, fy + 8, 30, 20, {
+          seed: s + 'win' + f + wc, fill: '#8FD0EE', stroke: PAL.outline,
+          lw: 2, hatch: 2.6, wash: 0.8
+        });
+      }
+    }
+  };
+
+  /* Steel, raised in three passes: uprights, then cross-beams, then the
+   * diagonal bracing that ties it all together. The crane draws these too,
+   * one pass per girder it drops. */
+  W.drawGirders = function (ctx, x, baseY, topY, pass, s) {
+    var STEEL = '#9AA6AE', BOLT = '#6E7A82';
+    if (pass >= 1) {
+      for (var c = 0; c < 4; c++) {
+        var cx = x + 24 + c * 60;
+        C.rect(ctx, cx - 5, topY, 10, baseY - topY, {
+          seed: s + 'col' + c, fill: STEEL, stroke: PAL.outline, lw: 2.6, hatch: 3, wash: 0.72
+        });
+        for (var b = 0; b < 6; b++) {
+          C.dot(ctx, cx, topY + 18 + b * 34, 2.4, BOLT, s + 'cb' + c + b);
+        }
+      }
+    }
+    if (pass >= 2) {
+      for (var fl = 0; fl <= 6; fl++) {
+        var fy = baseY - fl * 34;
+        C.rect(ctx, x + 18, fy - 5, 192, 10, {
+          seed: s + 'bm' + fl, fill: STEEL, stroke: PAL.outline, lw: 2.6, hatch: 3, wash: 0.72
+        });
+      }
+    }
+    if (pass >= 3) {
+      for (var d = 0; d < 6; d++) {
+        var y0 = baseY - d * 34, y1 = y0 - 34;
+        var lft = d % 2 === 0;
+        C.line(ctx, x + (lft ? 24 : 204), y0, x + (lft ? 204 : 24), y1, {
+          seed: s + 'br' + d, stroke: STEEL, lw: 5, wob: 0.8, passes: 1, strokeAlpha: 0.85
+        });
+      }
+    }
+  };
+
+  /* The glass going in, band by band, while the last stage is under way.
+   * Drawn as its own prop so it sorts right alongside the tower. */
+  function towerGlassAt(bands) {
+    return { w: 230, d: 84, h: 258, solid: false,
+      draw: function (ctx, x, y, s) {
+        W.drawGlazing(ctx, x, y - 34, y - 34 - 6 * 34, 6, bands, s);
+      }
+    };
+  }
+  P.towerGlass1 = towerGlassAt(1);
+  P.towerGlass2 = towerGlassAt(2);
+  P.towerGlass3 = towerGlassAt(3);
+
+  P.towerS0 = towerAt(0);
+  P.towerS1 = towerAt(1);
+  P.towerS2 = towerAt(2);
+  P.towerS3 = towerAt(3);
+  P.towerS4 = towerAt(4);
+
+  // ------------------------------------------------------- the theme park
+
+  /* A merry-go-round: a striped canopy on poles with horses under it.
+   * The riders are drawn by the ride code; this is the ride itself. */
+  /* The teacup ride's turntable. Its canopy is NOT drawn here — it hangs
+   * above everything, so the room paints it over the riders instead. */
+  P.carousel = { w: 220, d: 110, h: 170, solid: false, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y - 34, 220, 110);
+    var cx = x + 110, base = y + 40;
+    C.ellipse(ctx, cx, base, 108, 40, {
+      seed: s + 'plat', fill: '#C9A882', stroke: PAL.outline, lw: 3.4, hatch: 4, wash: 0.75
+    });
+    C.ellipse(ctx, cx, base - 6, 92, 32, {
+      seed: s + 'plat2', fill: '#E4C9A0', stroke: null, hatch: 4, wash: 0.5, fillAlpha: 0.55
+    });
+  }};
+
+  /* Poles, canopy and mast — painted last, above the riders. */
+  W.CAROUSEL_TOP = { w: 240, h: 240, ax: 120, ay: 214 };
+  W.drawCarouselTop = function (ctx, cx, base, s) {
+    for (var p = 0; p < 4; p++) {
+      var a = (p / 4) * Math.PI * 2 + Math.PI / 4;
+      C.line(ctx, cx + Math.cos(a) * 88, base + Math.sin(a) * 30,
+                  cx + Math.cos(a) * 88, base + Math.sin(a) * 30 - 150, {
+        seed: s + 'pole' + p, stroke: '#F2C14E', lw: 5, wob: 0.8
+      });
+    }
+    var COLS = ['#D9402F', PAL.white, '#4A6FC4', PAL.white, '#F2C14E', PAL.white];
+    for (var w2 = 0; w2 < 6; w2++) {
+      var a1 = (w2 / 6) * Math.PI * 2, a2 = ((w2 + 1) / 6) * Math.PI * 2;
+      C.poly(ctx, [[cx, base - 208],
+                   [cx + Math.cos(a1) * 100, base - 152 + Math.sin(a1) * 34],
+                   [cx + Math.cos(a2) * 100, base - 152 + Math.sin(a2) * 34]], {
+        seed: s + 'can' + w2, fill: COLS[w2], stroke: PAL.outline, lw: 2.6, hatch: 3.4, wash: 0.8
+      });
+    }
+    C.dot(ctx, cx, base - 214, 8, '#F2C14E', s + 'top');
+    C.line(ctx, cx, base - 208, cx, base - 150, { seed: s + 'mast', stroke: '#B9C3C9', lw: 6, wob: 0.7 });
+  };
+
+  /* One teacup seat. `hand` turns the handle round the rim (0 right, 1 back,
+   * 2 left, 3 front) — that is how the ride reads as spinning without the
+   * cup ever tipping over. */
+  function drawTeacup(ctx, cx, by, seed, tint, hand) {
+    hand = hand || 0;
+    C.ellipse(ctx, cx, by - 4, 30, 11, {
+      seed: seed + 'sc', fill: '#C9A882', stroke: PAL.outline, lw: 2.4, hatch: 3, wash: 0.8
+    });
+    if (hand === 1) {                      // handle behind the cup
+      C.arc(ctx, cx, by - 36, 9, Math.PI, Math.PI * 2, {
+        seed: seed + 'hb', stroke: PAL.outline, lw: 3, wob: 0.7
+      });
+    }
+    C.roundRect(ctx, cx - 26, by - 34, 52, 32, 14, {
+      seed: seed + 'b', fill: tint || PAL.white, stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.8
+    });
+    C.ellipse(ctx, cx, by - 34, 26, 9, {
+      seed: seed + 'r', fill: PAL.white, stroke: PAL.outline, lw: 2.4, hatch: 2.6, wash: 0.72
+    });
+    if (hand === 0) {
+      C.arc(ctx, cx + 30, by - 20, 9, -Math.PI * 0.5, Math.PI * 0.5, {
+        seed: seed + 'h', stroke: PAL.outline, lw: 3, wob: 0.7
+      });
+    } else if (hand === 2) {
+      C.arc(ctx, cx - 30, by - 20, 9, Math.PI * 0.5, Math.PI * 1.5, {
+        seed: seed + 'hl', stroke: PAL.outline, lw: 3, wob: 0.7
+      });
+    } else if (hand === 3) {               // handle nearest us, over the cup
+      C.arc(ctx, cx, by - 8, 9, 0, Math.PI, {
+        seed: seed + 'hf', stroke: PAL.outline, lw: 3, wob: 0.7
+      });
+    }
+    C.dot(ctx, cx - 10, by - 22, 3, PAL.pearl, seed + 'p1');
+    C.dot(ctx, cx + 6, by - 18, 3, PAL.pearl, seed + 'p2');
+  }
+  W.drawTeacup = drawTeacup;
+
+  /* A teacup a rider sits in, drawn by the teacup ride. */
+  P.carCup = { w: 70, d: 26, h: 46, solid: false, draw: function (ctx, x, y, s, tint) {
+    drawTeacup(ctx, x + 34, y, s, tint || '#8FD0EE');
+  }};
+
+  /* The coaster's boarding platform. */
+  P.coasterDeck = { w: 190, d: 70, h: 56,
+    foot: { dx: 0, dy: -28, w: 190, d: 68 },
+    draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y, 190, 70);
+    C.rect(ctx, x, y - 22, 190, 60, {
+      seed: s + 'd', fill: '#8A5F38', stroke: PAL.outline, lw: 3.4, hatch: 4, wash: 0.78
+    });
+    for (var pl = 0; pl < 5; pl++) {
+      C.line(ctx, x + 6 + pl * 44, y - 22, x + 6 + pl * 44, y + 36, {
+        seed: s + 'pk' + pl, stroke: PAL.woodDk, lw: 2, wob: 1, passes: 1, strokeAlpha: 0.6
+      });
+    }
+    C.roundRect(ctx, x + 20, y - 56, 150, 30, 8, {
+      seed: s + 'sg', fill: '#D9402F', stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.8
+    });
+    C.text(ctx, 'COASTER', x + 95, y - 36, {
+      size: 15, align: 'center', color: PAL.white, outline: 2.4, seed: s + 't'
+    });
+  }};
+
+  /* A striped fairground tent, home of the arcade. */
+  P.fairTent = { w: 200, d: 80, h: 170,
+    foot: { dx: 8, dy: -34, w: 184, d: 46 },
+    draw: function (ctx, x, y, s, tint) {
+    shadow(ctx, x, y - 56, 200, 80);
+    var cx = x + 100;
+    for (var p = 0; p < 5; p++) {
+      var x0 = x + p * 40;
+      C.poly(ctx, [[x0, y + 10], [x0 + 40, y + 10], [cx + (p - 2) * 8, y - 150]], {
+        seed: s + 'st' + p, fill: p % 2 ? '#D9402F' : PAL.white,
+        stroke: PAL.outline, lw: 3, hatch: 4, wash: 0.78, fillAlpha: p % 2 ? 0.8 : 0.35
+      });
+    }
+    C.line(ctx, cx, y - 150, cx, y - 176, { seed: s + 'ms', stroke: PAL.outline, lw: 3, wob: 0.7 });
+    C.poly(ctx, [[cx, y - 176], [cx + 30, y - 168], [cx, y - 160]], {
+      seed: s + 'fl', fill: '#F2C14E', stroke: PAL.outline, lw: 2.2, hatch: 2.6, wash: 0.85
+    });
+    C.arc(ctx, cx, y + 10, 34, Math.PI, Math.PI * 2, {
+      seed: s + 'dr', fill: '#3B2A20', stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.7
+    });
+    // a plaque, or the sign vanishes into the stripes
+    var lbl = tint || 'ARCADE';
+    var lw3 = C.textWidth(ctx, lbl, 16) / 2 + 14;
+    C.roundRect(ctx, cx - lw3, y - 112, lw3 * 2, 26, 6, {
+      seed: s + 'plq', fill: PAL.sun, stroke: PAL.outline, lw: 2.6, hatch: 3, wash: 0.8
+    });
+    C.text(ctx, lbl, cx, y - 94, {
+      size: 16, align: 'center', color: PAL.outline, seed: s + 'tx'
+    });
+  }};
+
+  /* An arcade cabinet. (Its own kind — P.cabinet is the kitchen's.) */
+  P.arcadeCab = { w: 70, d: 40, h: 120, draw: function (ctx, x, y, s, tint) {
+    // the machine's feet are at y, not at y + d, so the shadow rides up
+    shadow(ctx, x, y - 32, 70, 40);
+    var top = y - 120;
+    C.roundRect(ctx, x, top, 70, 120, 8, {
+      seed: s + 'b', fill: tint || '#5A4A9E', stroke: PAL.outline, lw: 3.4, hatch: 4, wash: 0.78
+    });
+    C.rect(ctx, x + 9, top + 16, 52, 40, {
+      seed: s + 'sc', fill: '#1E2A3A', stroke: PAL.outline, lw: 2.6, hatch: 3, wash: 0.85
+    });
+    for (var b = 0; b < 6; b++) {
+      C.dot(ctx, x + 16 + (b % 3) * 18, top + 26 + Math.floor(b / 3) * 16, 3.4,
+            ['#F2C14E', '#8FD0EE', '#E8A0B4'][b % 3], s + 'px' + b);
+    }
+    C.rect(ctx, x + 9, top + 66, 52, 20, {
+      seed: s + 'pn', fill: '#3B3446', stroke: PAL.outline, lw: 2.2, hatch: 2.6, wash: 0.8
+    });
+    C.dot(ctx, x + 22, top + 76, 5, '#D9402F', s + 'j');
+    C.dot(ctx, x + 40, top + 76, 4, '#F2C14E', s + 'b1');
+    C.dot(ctx, x + 50, top + 76, 4, '#6FA84B', s + 'b2');
+  }};
+
+  // ------------------------------------------------------- haunted house
+
+  /* The house itself: crooked, boarded, and not really scary at all —
+   * the porch below the door is where you walk in. */
+  P.hauntHouse = { w: 280, d: 60, h: 250, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y - 6, 280, 60);
+    var base = y + 40, cx = x + 140;
+    var wall = '#6B6478', dark = '#4A4458';
+
+    // the main block, leaning a little
+    C.poly(ctx, [[x + 26, base], [x + 254, base], [x + 244, base - 150], [x + 36, base - 156]], {
+      seed: s + 'wall', fill: wall, stroke: PAL.outline, lw: 3.6, hatch: 4.2, wash: 0.72
+    });
+    // roof
+    C.poly(ctx, [[x + 14, base - 148], [cx + 2, base - 226], [x + 264, base - 140]], {
+      seed: s + 'roof', fill: dark, stroke: PAL.outline, lw: 3.6, hatch: 4, wash: 0.7
+    });
+    // a crooked chimney
+    C.rect(ctx, x + 196, base - 226, 26, 46, {
+      seed: s + 'chim', fill: dark, stroke: PAL.outline, lw: 3, hatch: 3.4, wash: 0.75
+    });
+    // two lit windows, watching
+    for (var w = 0; w < 2; w++) {
+      var wx = x + 62 + w * 122;
+      C.rect(ctx, wx, base - 122, 44, 40, {
+        seed: s + 'win' + w, fill: '#F2C14E', stroke: PAL.outline, lw: 3, hatch: 3, wash: 0.6
+      });
+      C.line(ctx, wx, base - 102, wx + 44, base - 102,
+        { seed: s + 'wb' + w, stroke: PAL.outline, lw: 2.2, wob: 1 });
+      C.line(ctx, wx + 22, base - 122, wx + 22, base - 82,
+        { seed: s + 'wv' + w, stroke: PAL.outline, lw: 2.2, wob: 1 });
+    }
+    // the doorway, arched, with a little step
+    C.arc(ctx, cx, base - 66, 30, Math.PI, Math.PI * 2, {
+      seed: s + 'darch', fill: '#2E2838', stroke: PAL.outline, lw: 3.2, hatch: 3.4, wash: 0.7
+    });
+    C.rect(ctx, cx - 30, base - 66, 60, 66, {
+      seed: s + 'door', fill: '#2E2838', stroke: PAL.outline, lw: 3.2, hatch: 3.4, wash: 0.7
+    });
+    C.dot(ctx, cx + 18, base - 34, 4, '#F2C14E', s + 'knob');
+    C.roundRect(ctx, cx - 44, base - 6, 88, 14, 4, {
+      seed: s + 'step', fill: '#8A8296', stroke: PAL.outline, lw: 2.6, hatch: 3, wash: 0.78
+    });
+    // boards nailed across one window, and a cobweb in the eaves
+    C.line(ctx, x + 52, base - 116, x + 116, base - 96,
+      { seed: s + 'brd', stroke: '#8A5F38', lw: 6, wob: 1.2 });
+    for (var cw = 0; cw < 3; cw++) {
+      C.arc(ctx, x + 40, base - 150, 16 + cw * 10, 0, Math.PI * 0.5, {
+        seed: s + 'cw' + cw, stroke: PAL.white, lw: 1.6, wob: 1.4, passes: 1, strokeAlpha: 0.5
+      });
+    }
+  }};
+
+  /* The laboratory bar: a long counter with a rack of bubbling flasks
+   * behind it, lit by whatever is fizzing tonight. */
+  P.labBar = { w: 220, d: 52, h: 96,
+    foot: { dx: 0, dy: -8, w: 220, d: 46 },
+    draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y - 12, 220, 52);
+    C.rect(ctx, x, y - 74, 220, 82, {
+      seed: s + 'b', fill: '#5A4458', stroke: PAL.outline, lw: 3.4, hatch: 4.2, wash: 0.7
+    });
+    // the polished top
+    C.rect(ctx, x - 6, y - 86, 232, 16, {
+      seed: s + 't', fill: '#8A6F86', stroke: PAL.outline, lw: 3, hatch: 3, wash: 0.72
+    });
+    for (var pn = 0; pn < 4; pn++) {
+      C.line(ctx, x + 22 + pn * 56, y - 70, x + 22 + pn * 56, y + 4,
+        { seed: s + 'pn' + pn, stroke: '#3E3448', lw: 2.4, wob: 1.2, passes: 1, strokeAlpha: 0.6 });
+    }
+    // three flasks on the counter, mid-fizz
+    var COLS = ['#9CCB6B', '#8F6BA8', '#8FD0EE'];
+    for (var f = 0; f < 3; f++) {
+      var fx2 = x + 40 + f * 70, fy2 = y - 88;
+      C.ellipse(ctx, fx2, fy2 - 12, 13, 12, {
+        seed: s + 'fl' + f, fill: COLS[f], stroke: PAL.outline, lw: 2.6, hatch: 2.6, wash: 0.6
+      });
+      C.line(ctx, fx2 - 5, fy2 - 22, fx2 - 5, fy2 - 34,
+        { seed: s + 'nl' + f, stroke: PAL.outline, lw: 2.2, wob: 0.4, passes: 1 });
+      C.line(ctx, fx2 + 5, fy2 - 22, fx2 + 5, fy2 - 34,
+        { seed: s + 'nr' + f, stroke: PAL.outline, lw: 2.2, wob: 0.4, passes: 1 });
+      C.dot(ctx, fx2 - 3, fy2 - 40, 3, COLS[f], s + 'bb' + f);
+      C.dot(ctx, fx2 + 4, fy2 - 48, 2.2, COLS[f], s + 'bc' + f);
+    }
+  }};
+
+  /* A shelf of specimen jars for the laboratory wall. */
+  P.flaskShelf = { w: 120, d: 20, h: 84, solid: false, draw: function (ctx, x, y, s) {
+    C.rect(ctx, x, y - 16, 120, 12, {
+      seed: s + 'sh', fill: '#6B4A2A', stroke: PAL.outline, lw: 2.8, hatch: 3, wash: 0.75
+    });
+    var COLS = ['#F2C14E', '#9CCB6B', '#E8A0B4', '#8FD0EE'];
+    for (var j = 0; j < 4; j++) {
+      var jx = x + 16 + j * 28, jh = 22 + (j % 2) * 8;
+      C.roundRect(ctx, jx - 9, y - 16 - jh, 18, jh, 4, {
+        seed: s + 'j' + j, fill: COLS[j], stroke: PAL.outline, lw: 2.4, hatch: 2.4, wash: 0.6
+      });
+      C.line(ctx, jx - 9, y - 20 - jh, jx + 9, y - 20 - jh,
+        { seed: s + 'jl' + j, stroke: PAL.outline, lw: 2.6, wob: 0.5, passes: 1 });
+    }
+  }};
+
+  P.gravestone = { w: 56, d: 30, h: 70, draw: function (ctx, x, y, s, tint) {
+    shadow(ctx, x, y, 56, 30);
+    var top = y - 70;
+    C.arc(ctx, x + 28, top + 22, 24, Math.PI, Math.PI * 2, {
+      seed: s + 'a', fill: '#B9B2C4', stroke: PAL.outline, lw: 3, hatch: 3.6, wash: 0.72
+    });
+    C.rect(ctx, x + 4, top + 22, 48, 50, {
+      seed: s + 'b', fill: '#B9B2C4', stroke: PAL.outline, lw: 3, hatch: 3.6, wash: 0.72
+    });
+    C.text(ctx, tint || 'BOO', x + 28, top + 46, {
+      size: 13, align: 'center', color: '#5A5668', seed: s + 't'
+    });
+    C.line(ctx, x + 12, top + 58, x + 44, top + 58, {
+      seed: s + 'l', stroke: '#7A7488', lw: 2, wob: 1, passes: 1
+    });
+  }};
+
+  P.deadTree = { w: 90, d: 40, h: 170, draw: function (ctx, x, y, s) {
+    shadow(ctx, x, y, 90, 40);
+    var cx = x + 45;
+    C.line(ctx, cx, y + 8, cx - 6, y - 120, { seed: s + 'tr', stroke: '#5A4A3E', lw: 14, wob: 1.4 });
+    var arms = [[-6, -70, -52, -120], [-6, -84, 42, -132], [-6, -104, -40, -150], [-6, -110, 34, -156]];
+    for (var a = 0; a < arms.length; a++) {
+      C.line(ctx, cx + arms[a][0], y + arms[a][1], cx + arms[a][2], y + arms[a][3], {
+        seed: s + 'br' + a, stroke: '#5A4A3E', lw: 6 - a * 0.6, wob: 1.6
+      });
+    }
+    C.dot(ctx, cx - 52, y - 122, 5, '#F2C14E', s + 'ow');   // a little watching eye
+    C.dot(ctx, cx - 44, y - 122, 5, '#F2C14E', s + 'ow2');
+  }};
+
+  P.ironFence = { w: 100, d: 14, h: 62, draw: function (ctx, x, y, s) {
+    for (var i = 0; i < 5; i++) {
+      var px = x + 6 + i * 22;
+      C.line(ctx, px, y, px, y - 58, { seed: s + 'b' + i, stroke: '#4A4658', lw: 4, wob: 1 });
+      C.poly(ctx, [[px - 5, y - 58], [px + 5, y - 58], [px, y - 68]], {
+        seed: s + 'sp' + i, fill: '#4A4658', stroke: null, hatch: 2, wash: 0.9
+      });
+    }
+    for (var r = 0; r < 2; r++) {
+      C.line(ctx, x, y - 20 - r * 22, x + 100, y - 20 - r * 22, {
+        seed: s + 'r' + r, stroke: '#4A4658', lw: 3.4, wob: 1, passes: 1
+      });
+    }
+  }};
+
+  /* A section of haunted-house wall: solid, cobwebbed, candlelit. */
+  P.hauntWall = { w: 120, d: 26, h: 130, draw: function (ctx, x, y, s, tint) {
+    var top = y - 130;
+    C.rect(ctx, x, top, 120, 130, {
+      seed: s + 'w', fill: '#6E6478', stroke: PAL.outline, lw: 3.4, hatch: 5, wash: 0.62
+    });
+    for (var b = 0; b < 4; b++) {
+      C.line(ctx, x, top + 26 + b * 26, x + 120, top + 26 + b * 26, {
+        seed: s + 'b' + b, stroke: '#4A4658', lw: 2, wob: 1.4, passes: 1, strokeAlpha: 0.6
+      });
+    }
+    if (tint === 'web') {
+      for (var wq = 0; wq < 4; wq++) {
+        C.arc(ctx, x, top, 22 + wq * 13, 0, Math.PI * 0.5, {
+          seed: s + 'web' + wq, stroke: '#D8D4E0', lw: 1.8, wob: 1, passes: 1, strokeAlpha: 0.7
+        });
+      }
+      C.line(ctx, x, top, x + 62, top + 62, { seed: s + 'webl', stroke: '#D8D4E0', lw: 1.6, wob: 0.8, passes: 1, strokeAlpha: 0.6 });
+    } else if (tint === 'candle') {
+      C.rect(ctx, x + 50, top + 40, 16, 30, {
+        seed: s + 'cnd', fill: '#F2EEDC', stroke: PAL.outline, lw: 2.4, hatch: 2.6, wash: 0.85
+      });
+      C.poly(ctx, [[x + 54, top + 40], [x + 62, top + 40], [x + 58, top + 24]], {
+        seed: s + 'fl', fill: '#F2C14E', stroke: null, hatch: 2.4, wash: 0.9
+      });
+    }
   }};
 
   // ------------------------------------------------------- the campsite
@@ -1618,7 +2334,7 @@
   }};
 
   /* Little triangle flags strung across the treehouse. */
-  P.bunting = { w: 220, d: 8, h: 46, solid: false, draw: function (ctx, x, y, s) {
+  P.bunting = { pad: 46, w: 220, d: 8, h: 46, solid: false, draw: function (ctx, x, y, s) {
     var top = y - 46;
     var cols = ['#E8A0B4', '#F2C14E', '#7FBFA8', '#B48FD6', '#5FA8D6'];
     C.arc(ctx, x + 110, top - 22, 118, Math.PI * 0.18, Math.PI * 0.82, {
@@ -1646,20 +2362,35 @@
     var def = P[p.kind];
     if (!def) throw new Error('unknown prop kind: ' + p.kind);
     var w = def.w, d = def.d, h = def.h;
-    var ox = p.x - PAD;
-    var oy = p.y - h - PAD - 34;              // headroom for tall bits
-    var cw = w + PAD * 2;
-    var ch = h + d + PAD * 2 + 34;
+    // some props paint wider or taller than their footprint — a leafy crown
+    // spills well past the trunk it belongs to. `pad` buys that room, or the
+    // overhang gets sliced flat at the tile edge.
+    var pad = def.pad === undefined ? PAD : def.pad;
+    var ox = p.x - pad;
+    var oy = p.y - h - pad - 34;              // headroom for tall bits
+    var cw = w + pad * 2;
+    // the ground shadow is an ellipse of half-height d * 0.42 centred at
+    // y + d - 2, so a deep prop's shadow reaches past the plain footprint
+    var shadowTail = Math.max(0, Math.ceil(d * 0.42) - 2 - pad);
+    var ch = h + d + pad * 2 + 34 + shadowTail;
     var cv = C.offscreen(Math.ceil(cw), Math.ceil(ch));
     var ctx = cv.getContext('2d');
     ctx.translate(-ox, -oy);
     def.draw(ctx, p.x, p.y, 'prop' + p.kind + p.x + '_' + p.y, p.tint);
-    return { img: cv, ox: ox, oy: oy, baseY: p.y + d };
+    var ft = W.propFoot(def);
+    return { img: cv, ox: ox, oy: oy, baseY: p.y + ft.dy + ft.d };
+  };
+
+  /* What a prop actually stands on. Most props occupy their whole footprint,
+   * but a tree is nearly all canopy — its trunk is the only solid part. */
+  W.propFoot = function (def) {
+    return def.foot || { dx: 0, dy: 0, w: def.w, d: def.d };
   };
 
   W.propFootprint = function (p) {
     var def = P[p.kind];
     if (def.solid === false) return null;
-    return { x: p.x, y: p.y, w: def.w, h: def.d, jumpable: !!def.jumpable };
+    var f = W.propFoot(def);
+    return { x: p.x + f.dx, y: p.y + f.dy, w: f.w, h: f.d, jumpable: !!def.jumpable };
   };
 })(window.W);

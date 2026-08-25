@@ -5,10 +5,19 @@
   var C = W.crayon, PAL = W.PAL;
   var S = { t: 0, bg: null };
 
+  /* Two heroes, two kids, two saves. The title always asks WHO first —
+   * the answer picks the save slot before anything is loaded. */
+  var HEROES = [
+    { key: 'bobby',      name: 'Bobby Bear', sub: 'Warmland',   room: 'living' },
+    { key: 'butterball', name: 'Butterball', sub: 'Warmland 2', room: 'home2' }
+  ];
+
   S.enter = function () {
     S.t = 0;
     S.confirming = false;
-    S.hasSave = !!(W.save && W.save.has());
+    S.stage = 'hero';               // hero -> play
+    S.heroSel = 0;
+    S.hasSave = false;
     if (!S.bg) {
       var cv = C.offscreen(960, 600);
       var g = cv.getContext('2d');
@@ -33,8 +42,8 @@
         size: 92, align: 'center', color: PAL.roof,
         outline: 8, outlineColor: PAL.outline, seed: 'title', shadow: true, wob: 1.6
       });
-      C.text(g, 'starring Bobby Bear', 480, 278, {
-        size: 26, align: 'center', color: PAL.furDark, seed: 'sub'
+      C.text(g, 'starring Bobby Bear and Butterball', 480, 278, {
+        size: 24, align: 'center', color: PAL.furDark, seed: 'sub2'
       });
       S.bg = cv;
     }
@@ -49,7 +58,8 @@
       S.warmed = true;
       // Only what the opening minutes actually need: the current suit and the
       // park cast. Other suits warm on demand when picked in the closet.
-      W.warmChar('bobby', null, W.game.state.suit, 4);
+      W.warmChar('bobby', null, 'none', 4);
+      W.warmChar('butterball', null, 'none', 4);
       ['panda', 'yuna', 'butterball'].forEach(function (c) { W.warmChar(c, null, 'none', 4); });
       ['critterA', 'critterB', 'critterC'].forEach(function (k) {
         var f = W.FRIENDS[k];
@@ -60,6 +70,28 @@
     var wb = performance.now() + 5;
     if (W.warmStep()) while (performance.now() + W.warmAvg() < wb + 8 && W.warmStep()) { /* next */ }
 
+    // ---- who are we playing?
+    if (S.stage === 'hero') {
+      if (W.input.hit('left'))  S.heroSel = (S.heroSel + HEROES.length - 1) % HEROES.length;
+      if (W.input.hit('right')) S.heroSel = (S.heroSel + 1) % HEROES.length;
+      if (S.t > 0.3 && (W.input.hit('act') || W.input.hit('up') || W.input.hit('down'))) {
+        var pick = HEROES[S.heroSel];
+        if (W.save && W.save.setHero) W.save.setHero(pick.key);
+        W.game.state = W.game.freshState(pick.key);
+        S.hero = pick;
+        S.hasSave = !!(W.save && W.save.has());
+        S.stage = 'play';
+        if (W.audio) W.audio.play('ding');
+        W.warmChar(pick.key, null, 'none', 4);
+      }
+      return;
+    }
+
+    if (W.input.hit('back') && !S.hasSave) {
+      // no save for this hero: X goes back to the hero cards
+      S.stage = 'hero';
+      return;
+    }
     if (S.hasSave && W.input.hit('back')) {
       W.save.load();
       W.game.saveOk = true;
@@ -71,8 +103,9 @@
     // must not be able to wipe their game from the title screen.
     if (S.confirming) {
       if (W.input.hit('act')) {
+        W.game.state = W.game.freshState(S.hero.key);
         W.game.saveOk = true;
-        W.game.fadeTo('house', { room: 'living' });
+        W.game.fadeTo('house', { room: S.hero.room });
       } else if (W.input.hit('back') || W.input.hit('left') || W.input.hit('right') ||
                  W.input.hit('up') || W.input.hit('down')) {
         S.confirming = false;
@@ -85,7 +118,7 @@
         W.input.hit('left') || W.input.hit('right') || W.input.hit('act'))) {
       if (S.hasSave) { S.confirming = true; return; }
       W.game.saveOk = true;
-      W.game.fadeTo('house', { room: 'living' });
+      W.game.fadeTo('house', { room: S.hero.room });
     }
   };
 
@@ -100,7 +133,41 @@
     W.drawUFO(ctx, ux, 120 + Math.sin(S.t) * 14, 0.55, 'titleufo', S.t);
     ctx.restore();
 
-    W.drawBobby(ctx, 480, 500, {
+    if (S.stage === 'hero') {
+      C.textCached(ctx, 'who is playing?', 480, 330, {
+        size: 28, align: 'center', color: PAL.outline,
+        outline: 3.5, outlineColor: PAL.white, seed: 'whoq'
+      });
+      for (var h = 0; h < HEROES.length; h++) {
+        var cx = 300 + h * 360, on = h === S.heroSel;
+        var pop = on ? 1 + 0.05 * Math.sin(S.t * 4) : 1;
+        C.roundRect(ctx, cx - 120, 352, 240, 200, 18, {
+          seed: 'hc' + h + (on ? 'a' : 'b'),
+          fill: on ? PAL.white : '#C9C0B0', stroke: on ? PAL.sun : PAL.outline,
+          lw: on ? 6 : 3, hatch: 5, wash: 0.9, fillAlpha: on ? 0.35 : 0.5
+        });
+        W.drawChar(ctx, cx, 534, {
+          char: HEROES[h].key, dir: 'down', t: S.t,
+          moving: on, hopT: (S.t / 0.7) % 1, scale: 0.92 * pop
+        });
+        C.textCached(ctx, HEROES[h].name, cx, 378, {
+          size: 22, align: 'center', color: PAL.outline, seed: 'hn' + h
+        });
+        C.textCached(ctx, HEROES[h].sub, cx, 400, {
+          size: 15, align: 'center', color: PAL.woodDk, seed: 'hs' + h
+        });
+        if (on && W.keyChip) ctx.drawImage(W.keyChip('Z'), cx + 82, 360, 30, 26);
+      }
+      C.textCached(ctx, 'arrows choose  ·  Z start', 480, 578, {
+        size: 18, align: 'center', color: PAL.outline,
+        outline: 3, outlineColor: PAL.white, seed: 'hpick'
+      });
+      W.fx.draw(ctx);
+      return;
+    }
+
+    W.drawChar(ctx, 480, 500, {
+      char: S.hero ? S.hero.key : 'bobby',
       dir: 'down', t: S.t, moving: true, hopT: (S.t / 0.7) % 1, scale: 1.5
     });
 
@@ -109,7 +176,7 @@
     ctx.globalAlpha = pulse;
     var line = S.confirming ? 'start over?   Z = yes   ·   X = keep my game'
              : S.hasSave     ? 'X = continue my game   ·   arrow key = start over'
-                             : 'press an arrow key to play';
+                             : 'press an arrow key to play   ·   X = pick someone else';
     C.textCached(ctx, line, 480, 546, {
       size: 22, align: 'center', color: S.confirming ? PAL.roof : PAL.outline,
       outline: 3.5, outlineColor: PAL.white, seed: 'press' + (S.confirming ? 'c' : S.hasSave ? 's' : '')

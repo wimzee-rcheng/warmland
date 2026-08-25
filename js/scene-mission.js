@@ -46,6 +46,11 @@
     return key;
   }
 
+  /* What to call whoever turned up, for the shout, the bar and the banner. */
+  function villainName() {
+    return S.villain === 'nemesis' ? 'NEMESIS PRIME' : 'MEGATRON';
+  }
+
   function makeBoss() {
     return { x: 700, y: 220, r: 74, hp: 20, maxHp: 20, hurt: 0, t: 0, phase: 0, fireIn: 1.6, vx: -70 };
   }
@@ -53,6 +58,13 @@
   S.enter = function (p) {
     p = p || {};
     S.mission = p.mission || 'megatron';
+    // Megatron turns up wherever the cart is — go back to THAT park, not
+    // whichever one the game was written around
+    if (p.from) S.from = p.from;
+    if (!S.from) S.from = 'park';
+    // Warmland 2's park gets its own villain: Nemesis Prime, a big rig in
+    // black and purple. Bobby's park keeps Megatron.
+    S.villain = S.from === 'park2' ? 'nemesis' : 'megatron';
     S.f = new W.Fight();
     S.t = 0;
     S.lock = 2;                 // a moment to read and breathe before shots fly
@@ -72,10 +84,11 @@
       W.say('THE MOTHERSHIP! Aim for the core!', '#E0455F');
     } else if (S.mission === 'megatron') {
       S.boss = makeBoss();
+      S.boss.nemesis = S.villain === 'nemesis';
       S.f.enemies = [S.boss];
       S.f.hero.x = 300; S.f.hero.y = 470;
       S.f.hero.hp = S.f.hero.maxHp = 6;
-      W.say('MEGATRON! Boba gun, go! (X runs away)', PAL.roof);
+      W.say(villainName() + '! Boba gun, go! (X runs away)', PAL.roof);
     } else {
       S.boss = null;
       S.f.autoWin = false;               // waves arrive over time
@@ -141,7 +154,7 @@
         W.say('Heading home!');
         if (S.mission === 'megatron') {
           if (W.service) W.service.stop(true);
-          G.fadeTo('house', { room: 'park' });
+          G.fadeTo('house', { room: S.from });
         } else {
           G.fadeTo('vehicle', { vehicle: 'ufo', map: 'space' });
         }
@@ -207,7 +220,8 @@
             f.enemyFire(en.x, en.y + 14, (dx / dd) * 190, (dy / dd) * 190, 9);
           }
         } else {
-          // Megatron paces and fires his cannon
+          // the boss paces and fires: Megatron from his arm cannon,
+          // Nemesis Prime from the grille in his chest
           en.t += dt;
           en.x += en.vx * dt;
           if (en.x < 220 || en.x > 760) en.vx *= -1;
@@ -216,10 +230,12 @@
           if (en.fireIn <= 0) {
             var hpFrac = en.hp / en.maxHp;
             en.fireIn = hpFrac > 0.5 ? 1.6 : 1.2;       // a bit angrier when hurt
-            var bx = hero.x - (en.x + 60), by = (hero.y - 70) - en.y;
+            var muzX = en.nemesis ? en.x : en.x + 60;
+            var muzY = en.nemesis ? en.y - 16 : en.y;
+            var bx = hero.x - muzX, by = (hero.y - 70) - muzY;
             var bd = Math.hypot(bx, by) || 1;
             var bs = hpFrac > 0.5 ? 190 : 220;          // always dodgeable
-            f.enemyFire(en.x + 60, en.y - 14, (bx / bd) * bs, (by / bd) * bs, 13);
+            f.enemyFire(muzX, muzY - 14, (bx / bd) * bs, (by / bd) * bs, 13);
           }
         }
       }
@@ -298,7 +314,7 @@
         G2.addMoney(S.mission === 'megatron' ? 25 : S.mission === 'mothership' ? 30 : 15);
         if (S.mission === 'megatron') {
           if (W.service) W.service.stop(true);
-          G2.fadeTo('house', { room: 'park' });
+          G2.fadeTo('house', { room: S.from });
         } else {
           // victory returns you to free flight over space
           G2.fadeTo('vehicle', { vehicle: 'ufo', map: 'space' });
@@ -306,7 +322,7 @@
       } else {
         if (S.mission === 'megatron') {
           if (W.service) W.service.stop(true);
-          G2.fadeTo('house', { room: 'park' });
+          G2.fadeTo('house', { room: S.from });
         } else {
           G2.fadeTo('vehicle', { vehicle: 'ufo', map: 'space' });
         }
@@ -317,7 +333,9 @@
       S.announced = true;
       if (f.over === 'win') {
         W.game.showBanner('MISSION COMPLETE', S.mission === 'megatron'
-          ? 'Megatron is sweetened. The park is safe!'
+          ? (S.villain === 'nemesis'
+              ? 'Nemesis Prime rolls out. The park is safe!'
+              : 'Megatron is sweetened. The park is safe!')
           : S.mission === 'mothership'
             ? 'The MOTHERSHIP retreats! Space is saved!'
             : 'The skies are clear!');
@@ -371,6 +389,7 @@
       var en = f.enemies[e];
       if (en.mother) W.drawMothership(ctx, en.x, en.y, 1, S.t, en.hurt);
       else if (en.alien) W.drawAlien(ctx, en.x, en.y, 1, S.t, en.hurt);
+      else if (en.nemesis) W.drawNemesis(ctx, en.x, en.y, 1, S.t, en.hurt);
       else W.drawMegatron(ctx, en.x, en.y, 1, S.t, en.hurt);
       if (en.shield > 0) bubble(ctx, en.x, en.y, en.r + 16, '#8FD0EE');
     }
@@ -390,7 +409,7 @@
         ctx.rect(-46, -58, 92, 62);
         ctx.clip();
         W.drawChar(ctx, 0, 14, {
-          char: 'bobby', suit: G.state.suit, dir: 'down', t: G.t, scale: 0.48, noShadow: true
+          char: W.heroChar(), suit: G.state.suit, dir: 'down', t: G.t, scale: 0.48, noShadow: true
         });
         ctx.restore();
         W.drawUFOGlass(ctx, 0, 0, 1);
@@ -405,7 +424,7 @@
         ctx.restore();
       } else {
         W.drawChar(ctx, f.hero.x, f.hero.y, {
-          char: 'bobby', suit: G.state.suit, dir: 'right', t: G.t, scale: 0.9
+          char: W.heroChar(), suit: G.state.suit, dir: 'right', t: G.t, scale: 0.9
         });
       }
     }
@@ -413,9 +432,11 @@
     W.fx.draw(ctx);
 
     // health
-    W.drawHealthBar(ctx, 20, 20, 240, f.hero.hp / f.hero.maxHp, PAL.sun, 'Bobby');
+    W.drawHealthBar(ctx, 20, 20, 240, f.hero.hp / f.hero.maxHp, PAL.sun,
+      (W.CHARS[W.heroChar()] || {}).name || 'Bobby');
     if (S.mission === 'megatron' && S.boss && f.enemies.indexOf(S.boss) >= 0) {
-      W.drawHealthBar(ctx, 700, 20, 240, S.boss.hp / S.boss.maxHp, '#9A5FD6', 'MEGATRON');
+      W.drawHealthBar(ctx, 700, 20, 240, S.boss.hp / S.boss.maxHp,
+        S.villain === 'nemesis' ? '#C44FE8' : '#9A5FD6', villainName());
     } else if (S.mission === 'mothership') {
       var mb = S.f.enemies.filter(function (e2) { return e2.mother; })[0];
       W.drawHealthBar(ctx, 660, 20, 280, mb ? mb.hp / mb.maxHp : 0, '#E0455F', 'MOTHERSHIP');
@@ -442,6 +463,10 @@
         size: 24, align: 'center', color: '#E0455F',
         outline: 4, outlineColor: PAL.white, seed: 'msarm'
       });
+      if (W.keyChip) {
+        var eb2 = 1 + 0.22 * Math.sin(S.t * 7);
+        ctx.drawImage(W.keyChip('E'), 466 - 28 * eb2, 140, 56 * eb2, 48 * eb2);
+      }
       ctx.restore();
     }
 

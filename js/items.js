@@ -58,6 +58,8 @@
     fishDinner: { name: 'Fish Dinner', kind: 'dish', color: '#5FA8D6', icon: 'fish' },
 
     boba:       { name: 'Boba',       kind: 'drink', color: '#D9A863', icon: 'cup' },
+    lemonade:   { name: 'Lemonade',   kind: 'drink', color: '#F2D64E', icon: 'cup' },
+    potion:     { name: 'Spider Potion', kind: 'drink', color: '#8F6BA8', icon: 'flask' },
     vanilla:    { name: 'Vanilla',    kind: 'drink', color: '#F3E6C8', icon: 'cone', topping: '#F2C14E' },
     chocolate:  { name: 'Chocolate',  kind: 'drink', color: '#8A5A3B', icon: 'cone', topping: '#5A3A20' },
     strawberry: { name: 'Strawberry', kind: 'drink', color: '#E88FA8', icon: 'cone', topping: '#D9402F' },
@@ -74,6 +76,7 @@
     hoe:        { name: 'Hoe',        kind: 'tool',     color: '#8A5F38', icon: 'hoe' },
     stick:      { name: 'Marshmallow Stick', kind: 'tool', color: '#8A5F38', icon: 'stick' },
     roofPanel:  { name: 'Roof Panel', kind: 'tool', color: '#C2633A', icon: 'panel' },
+    windowPanel: { name: 'Window', kind: 'tool', color: '#8FD0EE', icon: 'window' },
     smore:      { name: "S'more",     kind: 'dish',     color: '#C98F4E', icon: 'smore' },
     wateringCan:{ name: 'Watering Can', kind: 'tool',   color: '#5FBFD6', icon: 'can' },
     treat:      { name: 'Pet Treat',  kind: 'treasure', color: '#E8B23D', icon: 'balls' },
@@ -219,6 +222,32 @@
         C.dot(g, cx - r * 0.15, cy + r * 0.45, r * 0.14, PAL.pearl, s + 'b1');
         C.dot(g, cx + r * 0.18, cy + r * 0.5, r * 0.14, PAL.pearl, s + 'b2');
         C.line(g, cx + r * 0.15, cy - r * 0.6, cx + r * 0.35, cy - r * 1.05, { seed: s + 'st', stroke: PAL.sun, lw: 2.6, wob: 0.5 });
+        break;
+      case 'window':
+        // four blue-grey panes in a frame — unmistakably a window
+        C.rect(g, cx - r * 0.6, cy - r * 0.55, r * 1.2, r * 1.1, {
+          seed: s + 'fr', fill: '#8A96A0', stroke: PAL.outline, lw: 2.4, hatch: 2.6, wash: 0.8
+        });
+        for (var wq = 0; wq < 4; wq++) {
+          C.rect(g, cx - r * 0.5 + (wq % 2) * r * 0.52,
+                    cy - r * 0.45 + Math.floor(wq / 2) * r * 0.5,
+                    r * 0.42, r * 0.4, {
+            seed: s + 'pn' + wq, fill: col, stroke: PAL.outline, lw: 1.8, hatch: 2, wash: 0.62
+          });
+        }
+        break;
+      case 'flask':
+        // a round-bottomed flask, corked, fizzing
+        C.line(g, cx - r * 0.22, cy - r * 0.72, cx - r * 0.22, cy - r * 0.1,
+          { seed: s + 'nl', stroke: PAL.outline, lw: 2.2, wob: 0.4, passes: 1 });
+        C.line(g, cx + r * 0.22, cy - r * 0.72, cx + r * 0.22, cy - r * 0.1,
+          { seed: s + 'nr', stroke: PAL.outline, lw: 2.2, wob: 0.4, passes: 1 });
+        C.ellipse(g, cx, cy + r * 0.3, r * 0.55, r * 0.5,
+          { seed: s, fill: col, stroke: PAL.outline, lw: 2.4, hatch: 2.6, wash: 0.7 });
+        C.roundRect(g, cx - r * 0.26, cy - r * 0.92, r * 0.52, r * 0.26, r * 0.1,
+          { seed: s + 'ck', fill: '#C08A4E', stroke: PAL.outline, lw: 2, hatch: 2.2, wash: 0.85 });
+        C.dot(g, cx - r * 0.16, cy + r * 0.2, r * 0.11, PAL.white, s + 'bb1');
+        C.dot(g, cx + r * 0.2, cy + r * 0.38, r * 0.09, PAL.white, s + 'bb2');
         break;
       case 'cone':
         C.poly(g, [[cx - r * 0.4, cy], [cx + r * 0.4, cy], [cx, cy + r * 0.85]],

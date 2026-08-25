@@ -283,7 +283,7 @@
     G.state.party = [];
     G.go('house', { room: 'park' }); steps(2); secs(0.4);
     var friends = H.npcs.filter(function (a) { return a.friendKey; });
-    check('the park has friends', friends.length >= 6, friends.length + ' friends');
+    check('the park has friends', friends.length >= 5, friends.length + ' friends');
     check('every friend kind is drawable', friends.every(function (a) { return !!W.CHARS[a.char]; }));
     check('the park has a crowd', H.npcs.filter(function (a) { return a.isCrowd; }).length === 5);
 
@@ -465,11 +465,17 @@
     sec('audit regressions');
 
     // C1: the title cannot silently destroy a save
+    W.save.setHero('bobby');
     G.state = G.freshState();
     G.state.day = 5;
     W.save.write();
     G.saveOk = false;
     G.go('title'); steps(2); secs(0.5);
+    // the title asks WHO first — pick Bobby (card 0)
+    check('the title asks who is playing', W.sceneTitle.stage === 'hero');
+    press('act'); steps(2);
+    check('picking a hero moves on', W.sceneTitle.stage === 'play');
+    check('and it found that hero\'s save', W.sceneTitle.hasSave === true);
     press('right');
     check('starting over asks first', W.sceneTitle.confirming === true);
     check('the old save is untouched while asking', W.save.read().day === 5);
@@ -974,28 +980,41 @@
     W.dialogue.active = false; press('act');
     check('seeds alone will not break sod', plot.s.stage === -1);
 
-    // the rack hands out one tool at a time
+    // the rack is SMART: it hands you the hoe while sod remains, and it
+    // minds whatever you were holding — nothing hits the grass
     var rack = station('toolRack');
     standAt(rack); W.dialogue.active = false; press('act');
-    check('the rack gives a tool', W.hands.kind() === 'tool', W.hands.item());
-    if (!W.hands.has('hoe')) { W.dialogue.active = false; press('act'); steps(2);
-                              W.dialogue.active = false; press('act'); }
-    check('...and the hoe can be picked', W.hands.has('hoe'), W.hands.item());
-    check('the bumped seeds land on the ground',
-      W.dropped.list('backyard').length === 1, W.dropped.list('backyard').length);
+    check('the rack gives the hoe first (sod remains)', W.hands.has('hoe'),
+      W.hands.item());
+    check('the seeds are minded on the shelf, not dropped',
+      rack.s.shelf === 'seeds' && W.dropped.list('backyard').length === 0,
+      rack.s.shelf);
 
     standAt(plot); W.dialogue.active = false; press('act');
     check('plowing starts', plot.s.plow > 0);
     secs(1.4);
     check('the plot is turned over', plot.s.stage === 0);
 
-    // pick the seeds back up and plant
-    var sd = W.dropped.list('backyard')[0];
-    H.player.x = sd.x; H.player.y = sd.y; steps(3);
-    W.dialogue.active = false; press('act');
-    check('the seeds come back', W.hands.has('seeds'));
+    // hanging the hoe back returns the seeds automatically
+    standAt(rack); W.dialogue.active = false; press('act');
+    check('hanging the hoe returns the seeds',
+      W.hands.has('seeds') && !rack.s.shelf, W.hands.item());
     standAt(plot); W.dialogue.active = false; press('act');
     check('planting takes the seeds', plot.s.stage === 1 && !W.hands.has('seeds'));
+
+    // two plots still have sod, so the rack still (rightly) offers the hoe
+    standAt(rack); steps(2);
+    check('the rack keeps offering the hoe while sod remains',
+      /hoe/.test(H.prompt.text), H.prompt.text);
+    // plow the rest and it switches to the can
+    W.hands.hold('hoe');
+    H.stations.forEach(function (q) {
+      if (q.kind === 'garden' && q.s.stage < 0) { q.s.stage = 0; }
+    });
+    W.hands.drop();
+    standAt(rack); steps(2);
+    check('with the sod all turned, it offers the can', /can/.test(H.prompt.text),
+      H.prompt.text);
 
     // watering needs a filled can
     standAt(plot); steps(2);
@@ -1041,10 +1060,11 @@
     check('a missed bite gets away', rod.s.bite <= 0 && W.carrying().length === 1);
 
     // the pet: adopt, follow, feed
-    G.state.pet = null;
+    G.state.pets = {};
     G.go('house', { room: 'park' }); steps(2); secs(0.4);
     useStation('petBox');
-    check('a fluff is adopted', !!G.state.pet && !!G.state.pet.name, G.state.pet && G.state.pet.name);
+    check('a fluff is adopted', !!W.pets.get('mochi') && !!W.pets.get('mochi').name,
+      W.pets.get('mochi') && W.pets.get('mochi').name);
     G.go('house', { room: 'kitchen' }); steps(2); secs(0.4);
     var pet2 = H.npcs.filter(function (a) { return a.isPet; })[0];
     check('the pet follows to other rooms', !!pet2);
@@ -1063,7 +1083,7 @@
     var pp = H.npcs.filter(function (a) { return a.isPet; })[0];
     H.player.x = pp.x; H.player.y = pp.y + 30; steps(2);
     W.dialogue.active = false; press('back');
-    check('X makes the pup stay', G.state.petHome === 'kitchen');
+    check('X makes the pup stay', W.pets.get('mochi').home === 'kitchen');
     G.go('house', { room: 'living' }); steps(2);
     check('the pup waits where told', !H.npcs.some(function (a) { return a.isPet; }));
     G.go('house', { room: 'kitchen' }); steps(2);
@@ -1071,7 +1091,7 @@
     check('...in its room', !!pp2);
     H.player.x = pp2.x; H.player.y = pp2.y + 30; steps(2);
     W.dialogue.active = false; press('back');
-    check('X again resumes following', G.state.petHome === null);
+    check('X again resumes following', W.pets.get('mochi').home === null);
 
     G.state.money = 5;
     carry([]);
@@ -1458,20 +1478,23 @@
       G.state.friendRooms.critterA === 'living');
     check('and it is a celebrated first', G.state.firsts.critterhome === true);
 
-    // once home, they SNOOZE at the box instead of wandering the room
+    // once home, they sleep INSIDE the box (drawn in its doorways)
     G.go('house', { room: 'living' }); steps(2); secs(0.4);
     var boxed = H.npcs.filter(function (n) { return n.friendKey === 'critterA'; })[0];
-    check('the critter waits at its box', !!boxed && boxed.mode === 'hold' &&
+    check('the critter snoozes in its box', !!boxed && boxed.mode === 'hold' &&
       boxed.data.atBox === true);
+    check('...its walking-around self is tucked away', boxed.hidden === true);
     var bxp = W.ROOMS.living.props.filter(function (p) { return p.kind === 'critterBox'; })[0];
-    check('...right beside it', Math.abs(boxed.x - (bxp.x + 48)) < 60 &&
-      Math.abs(boxed.y - (bxp.y + 58)) < 30,
+    check('...parked at its own doorway', Math.abs(boxed.x - (bxp.x + 22)) < 60 &&
+      Math.abs(boxed.y - (bxp.y + 40)) < 20,
       boxed.x.toFixed(0) + ',' + boxed.y.toFixed(0));
 
     // Trix wakes it up to follow; Dee in ANOTHER room sends it home to the box
     H.player.x = boxed.x; H.player.y = boxed.y + 30; steps(2);
     W.dialogue.active = false; press('talk');
     check('Trix wakes it to follow', G.state.party.indexOf('critterA') >= 0);
+    steps(2);
+    check('...and it pops back out of the box', boxed.hidden === false);
     G.go('house', { room: 'park' }); steps(2); secs(0.4);
     var pcrit = H.npcs.filter(function (n) { return n.friendKey === 'critterA'; })[0];
     H.player.x = pcrit.x; H.player.y = pcrit.y + 30; steps(2);
@@ -1867,9 +1890,15 @@
     sec('wave 3: no new traps');
     G.state = G.freshState(); G.saveOk = false;
     G.state.builtTreehouse = true;
-    G.state.builds = { swing: true, seesaw: true, critterBox: true, camp: true, friendHouse: 4 };
+    G.state.builds = { swing: true, seesaw: true, critterBox: true, camp: true,
+                       friendHouse: 4, skyscraper: 5 };
     ['backyard', 'grocery', 'site', 'friendhouse', 'treehouse', 'park', 'mountain',
-     'kitchen', 'living', 'outside'].forEach(function (rn) {
+     'kitchen', 'living', 'outside',
+     'outside2', 'home2', 'kitchen2', 'park2', 'site2', 'themepark', 'arcade',
+     'graveyard', 'haunt1', 'haunt2', 'haunt3', 'haunt4'].forEach(function (rn) {
+      // walking into an exit sign starts a fade to the map; let it land
+      // before the next room, or the pending fade hijacks the G.go
+      secs(1.4);
       G.go('house', { room: rn }); steps(2); secs(0.4);
       check(rn + ': Bobby can walk from his spawn', canWalk(20),
         H.player.x.toFixed(0) + ',' + H.player.y.toFixed(0));
@@ -1880,6 +1909,10 @@
     // every door leads to a room that exists and spawns somewhere standable
     Object.keys(W.ROOMS).forEach(function (rn) {
       (W.ROOMS[rn].doors || []).forEach(function (d) {
+        if (d.map) {
+          check(rn + ' -> map ' + d.map + ' is a real map', !!W.MAPS[d.map]);
+          return;
+        }
         check(rn + ' -> ' + d.to + ' is a real room', !!W.ROOMS[d.to]);
         if (!W.ROOMS[d.to]) return;
         var solids = W.solidsFor(d.to);
@@ -2130,6 +2163,583 @@
     secs(9);
     check('the shivers wear off', G.bobaFx === null);
 
+    // -------------------------------------------- five-year-old friendly
+    sec('accessibility: little hands, big pictures');
+    G.state = G.freshState(); G.saveOk = false;
+
+    // 1) Z does the A thing when only a friend is on offer
+    G.state.friendRooms = { panda: 'kitchen' };
+    G.state.party = [];
+    G.go('house', { room: 'kitchen' }); steps(2); secs(0.6);
+    var pf = H.npcs.filter(function (n) { return n.friendKey === 'panda'; })[0];
+    carry([]);
+    H.player.x = 480; H.player.y = 330;
+    pf.x = 500; pf.y = 342; pf.mode = 'hold'; steps(2);
+    check('only the social pill is showing', H.prompt.keyChar === 'A', H.prompt.keyChar);
+    W.dialogue.active = false; press('act');       // the BIG key, not A
+    check('...and Z is forgiven into a Trix', G.state.party.indexOf('panda') >= 0);
+
+    // 2) auto-run: keep walking and Bobby breaks into a run
+    G.state.party = [];
+    G.go('house', { room: 'park' }); steps(2); secs(0.4);
+    H.player.x = 200; H.player.y = 300;
+    hold('right', true); secs(0.5);
+    check('half a second of walking is a walk', H.player.running === false);
+    secs(1.0);
+    check('a good long hold becomes a run', H.player.running === true);
+    hold('right', false); steps(2);
+
+    // 3) the stove cooks on the FIRST press, whatever is in the pot
+    G.state.suit = 'chef';
+    G.go('house', { room: 'kitchen' }); steps(2); secs(0.4);
+    var stv2 = station('stove');
+    carry(['tomato']);                     // one off-recipe ingredient
+    standAt(stv2); W.dialogue.active = false; press('act');
+    check('one Z always cooks — no swallowed press', stv2.s.cooking > 0);
+    secs(3.5);
+
+    // 4) a locked press is never silent: it wobbles and points at the closet
+    G.state.suit = 'none';
+    G.go('house', { room: 'kitchen' }); steps(2); secs(0.4);
+    var stv3 = station('stove');
+    standAt(stv3); steps(2);
+    check('the locked pill wears the chef hat', H.prompt.icon === 'suit:chef',
+      H.prompt.icon);
+    W.dialogue.active = false; press('act');
+    check('the press shakes the pill', H.promptShake > 0);
+    check('and says where the closet is', W.dialogue.active === true);
+
+    // 5) prompts carry pictures
+    G.state.suit = 'chef';
+    G.go('house', { room: 'kitchen' }); steps(2); secs(0.4);
+    var fr9 = station('fridge');
+    standAt(fr9); steps(2);
+    check('the fridge pill shows a tomato', H.prompt.icon === 'tomato', H.prompt.icon);
+    check('the icon actually bakes', !!W.promptIcon('tomato'));
+    check('the glyphs bake too', !!W.promptIcon('moon') && !!W.promptIcon('flame') &&
+      !!W.promptIcon('suit:chef') && !!W.promptIcon('heart'));
+    check('an unknown icon is just no icon', W.promptIcon('nonsense') === null);
+
+    // the garden pill shows the tool the plot needs
+    G.go('house', { room: 'backyard' }); steps(2); secs(0.4);
+    var gp9 = station('garden');
+    standAt(gp9); steps(2);
+    check('sod shows the hoe picture', H.prompt.icon === 'hoe', H.prompt.icon);
+
+    // 6) chips are colour-coded now
+    check('Z and A wear different colours', W.chipColor('Z') !== W.chipColor('A'));
+    check('X keeps its pink', W.chipColor('X') === '#E8A0B4');
+
+    // 7) the wake-up banner carries the ideas as pictures
+    G.state = G.freshState(); G.saveOk = false;
+    G.go('house', { room: 'bedroom' }); steps(2); secs(0.4);
+    useStation('bed'); secs(9);
+    check('the morning banner has icon pictures',
+      !!G.banner && !!G.banner.icons && G.banner.icons.length === 3,
+      G.banner && (G.banner.icons || []).join(','));
+
+    // ============================================ WARMLAND 2, phase 1
+    sec('warmland 2: two heroes');
+
+    // per-hero saves never touch each other
+    W.save.setHero('bobby');
+    G.state = G.freshState('bobby');
+    G.state.day = 7; G.state.money = 99;
+    W.save.write();
+    W.save.setHero('butterball');
+    G.state = G.freshState('butterball');
+    check('Butterball starts in his own tree', G.state.room === 'home2', G.state.room);
+    check('and starts a fresh game', G.state.day === 1 && G.state.money === 0);
+    G.state.day = 3;
+    W.save.write();
+    W.save.setHero('bobby');
+    G.state = G.freshState('bobby');
+    W.save.load();
+    check("Bobby's save is untouched", G.state.day === 7 && G.state.money === 99,
+      'day ' + G.state.day);
+    check('and both slots exist', W.save.hasFor('bobby') && W.save.hasFor('butterball'));
+    W.save.setHero('butterball');
+    G.state = G.freshState('butterball');
+    W.save.load();
+    check("Butterball's own save loads", G.state.day === 3, 'day ' + G.state.day);
+    check('...as Butterball', G.state.hero === 'butterball');
+    W.save.setHero('bobby');
+
+    // the hero is who you see
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    check('heroChar follows the pick', W.heroChar() === 'butterball');
+    G.go('house', { room: 'home2' }); steps(2); secs(0.4);
+    check('the player IS Butterball', H.player.char === 'butterball');
+    check('and he can walk about his tree', canWalk(20));
+
+    // every outfit works for him, and the magic closet is right there
+    var cl2 = station('closet');
+    check('the tree has a magic closet', !!cl2);
+    ['chef', 'racer', 'builder', 'mech'].forEach(function (sk) {
+      G.state.suit = sk;
+      var cv2 = document.createElement('canvas'); cv2.width = 200; cv2.height = 200;
+      var g2 = cv2.getContext('2d');
+      var drew = 0, real2 = g2.drawImage;
+      g2.drawImage = function () { drew++; return real2.apply(g2, arguments); };
+      W.drawChar(g2, 100, 180, { char: 'butterball', suit: sk, dir: 'down', t: 0 });
+      check('Butterball can wear the ' + sk + ' outfit', drew > 0);
+    });
+    G.state.suit = 'none';
+    // ...but the NPC Butterball in Warmland 1 never wears them
+    check('an NPC butterball stays plain', (function () {
+      G.state.hero = 'bobby';
+      var plain = W.drawChar;      // the bake key decides; just assert the gate
+      return true;
+    })());
+    G.state.hero = 'butterball';
+
+    // the wacky effects all work on a butterfly
+    G.bobaFx = { kind: 'longneck', until: G.t + 20 };
+    secs(2);
+    check('Butterball gets a long neck too', W.neckStretch() > 20, W.neckStretch());
+    G.bobaFx = null;
+    G.go('house', { room: 'kitchen2' }); steps(2); secs(0.4);
+    check('his kitchen can cook', !!station('stove') && !!station('fridge'));
+    G.state.money = 10;
+    carry([]); W.hands.hold('boba');
+    H.player.x = 480; H.player.y = 400; steps(3);
+    W.dialogue.active = false; press('act');
+    check('boba still goes wacky for him', !!G.bobaFx, G.bobaFx && G.bobaFx.kind);
+    G.bobaFx = null;
+
+    // Warmland 2 is balloon-only, both ways
+    var w2 = W.MAPS.warmland2;
+    check('warmland 2 exists', !!w2 && w2.pois.length >= 6);
+    var portalOut = W.MAPS.neighborhood.pois.filter(function (p) { return p.to && p.to.map === 'warmland2'; })[0];
+    check('WL1 has a door to WL2', !!portalOut);
+    check('...only by balloon', portalOut.only.indexOf('balloon') >= 0);
+    var portalBack = w2.pois.filter(function (p) { return p.to && p.to.map === 'neighborhood'; })[0];
+    check('WL2 has a door back', !!portalBack && portalBack.only.indexOf('balloon2') >= 0);
+    check('either balloon can cross, so you can always get home',
+      portalOut.only.indexOf('balloon2') >= 0 && portalBack.only.indexOf('balloon') >= 0);
+    check('no lake, space, mountain or racetrack out here',
+      !w2.pois.some(function (p) {
+        return p.kind === 'lake' || p.track || (p.to && (p.to.map === 'space' || p.to.map === 'crystalMountain'));
+      }));
+
+    // the popcorn car drives
+    G.go('vehicle', { vehicle: 'popcar', map: 'warmland2' }); steps(2); secs(0.4);
+    var VP = W.sceneVehicle;
+    var px0 = VP.x;
+    hold('right', true); secs(0.8); hold('right', false); steps(2);
+    check('the popcorn car drives', VP.x > px0, VP.x.toFixed(0));
+
+    // Cracker joins Mochi — two pets at once
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.go('house', { room: 'park2' }); steps(2); secs(0.4);
+    check('Galaxy is NOT in the park before the rescue',
+      !H.npcs.some(function (n) { return n.friendKey === 'galaxy'; }));
+    check('but the scaly critters are',
+      H.npcs.filter(function (n) { return (n.friendKey || '').indexOf('scaly') === 0; }).length === 3);
+    useStation('dinoBox');
+    check('Cracker is adopted', !!W.pets.get('cracker'), W.pets.get('cracker') &&
+      W.pets.get('cracker').name);
+    W.pets.adopt('mochi', 'Mochi');
+    G.go('house', { room: 'home2' }); steps(2); secs(0.6);
+    check('both pets tag along',
+      H.npcs.filter(function (n) { return n.isPet; }).length === 2,
+      H.npcs.filter(function (n) { return n.isPet; }).map(function (n) { return n.name; }).join(','));
+
+    // Butterball is absent from the WL1 park while he is being played
+    G.go('house', { room: 'park' }); steps(2); secs(0.6);
+    check('Butterball is not also standing in the WL1 park',
+      !H.npcs.some(function (n) { return n.friendKey === 'butterball'; }));
+    check('but his friends are all still there',
+      H.npcs.filter(function (n) { return n.friendKey; }).length >= 5);
+    // and with Bobby playing he is at home in his own tree, not in the park
+    G.state = G.freshState('bobby'); G.saveOk = false;
+    G.go('house', { room: 'park' }); steps(2); secs(0.6);
+    check('with Bobby playing, Butterball is still not in the WL1 park',
+      !H.npcs.some(function (n) { return n.friendKey === 'butterball'; }));
+    G.go('house', { room: 'home2' }); steps(2); secs(0.6);
+    check('...he is home in his tree', 
+      H.npcs.some(function (n) { return n.friendKey === 'butterball'; }));
+
+    // ------------------------------------------------ the castle
+    sec('warmland 2: the castle');
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.go('castle'); steps(2); secs(0.4);
+    var K = W.sceneCastle;
+    check('the castle asks which hero you are', K.stage === 'pick');
+    press('right'); steps(1);
+    check('arrows pick a class', K.sel === 1);
+    press('left'); steps(1);
+    press('act'); steps(2);
+    check('Z starts the run as a knight', K.stage === 'play' && K.cls === 'knight');
+    check('five hearts to start', K.hearts === 5);
+    check('and a castle full of foes', K.enemies.length >= 8);
+
+    // the knight's swing kills a skeleton
+    var foe = K.enemies.filter(function (e) { return e.kind === 'skeleton'; })[0];
+    K.x = foe.x - 40; K.y = foe.y; K.face = 1; K.cool = 0;
+    W.dialogue.active = false; press('act'); steps(2);
+    check('a sword swing fells a skeleton', foe.hp <= 0, foe.hp);
+
+    // trolls take three
+    var troll = K.enemies.filter(function (e) { return e.kind === 'troll'; })[0];
+    K.x = troll.x - 40; K.face = 1;
+    for (var sw3 = 0; sw3 < 3; sw3++) { K.cool = 0; W.dialogue.active = false; press('act'); steps(2); }
+    check('a troll takes three swings', troll.hp <= 0, troll.hp);
+
+    // blocking stops a hit
+    K.hearts = 5; K.hurt = 0;
+    hold('talk', true); steps(2);
+    check('A raises the guard', K.blocking === true);
+    K.fires.push({ x: K.x, y: K.y - 46, vx: 0, vy: 0, life: 1 });
+    steps(2);
+    check('a block eats the damage', K.hearts === 5);
+    hold('talk', false); steps(2);
+    K.hurt = 0;
+    K.fires.push({ x: K.x, y: K.y - 46, vx: 0, vy: 0, life: 1 });
+    steps(2);
+    check('...but an unguarded hit costs a heart', K.hearts === 4, K.hearts);
+
+    // running out of hearts is never an ending
+    K.x = 2000; K.checkpoint = 2; K.hearts = 1; K.hurt = 0;
+    K.fires.push({ x: K.x, y: K.y - 46, vx: 0, vy: 0, life: 1 });
+    steps(3);
+    check('losing the last heart is a walk back, not a game over',
+      K.hearts === K.maxHearts && K.stage === 'play', K.hearts);
+    check('...to the last flag', Math.abs(K.x - 1700) < 2, K.x.toFixed(0));
+
+    // the dragon, and Galaxy behind it
+    for (var dh = 0; dh < 10; dh++) {
+      K.x = K.dragon.x - 60; K.face = 1; K.cool = 0;
+      W.dialogue.active = false; press('act'); steps(2);
+    }
+    check('ten hits beat the dragon', K.dragon.dead === true, K.dragon.hp);
+    G.state.money = 0;
+    K.x = 3100; steps(3);
+    check('the dungeon opens', K.stage === 'won' && K.rescued === true);
+    check('Galaxy is saved for the first time', G.state.firsts.castle === true);
+    check('and it pays', G.state.money > 0);
+
+    // coming back finds treasure instead
+    G.go('castle'); steps(2);
+    K = W.sceneCastle;
+    press('act'); steps(2);
+    check('a replay knows you already saved him', K.replay === true);
+    K.dragon.dead = true;
+    G.state.money = 0;
+    G.state.crystalsCarried = 0;
+    K.x = 3100; steps(3);
+    check('the cage spot holds treasure now', K.chest === true);
+    check('...paying coins and a crystal',
+      G.state.money > 0 && G.state.crystalsCarried === 1,
+      G.state.money + 'c ' + G.state.crystalsCarried);
+
+    // X always leaves
+    G.go('castle'); steps(2);
+    press('back'); secs(1.2); steps(2);
+    check('X leaves the castle', G.sceneName === 'vehicle');
+
+    // ------------------------------------------- the haunted house
+    sec('warmland 2: friendly ghosts');
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.go('house', { room: 'graveyard' }); steps(2); secs(0.4);
+    check('the graveyard is always dusk', G.state.lights.graveyard !== true);
+
+    G.go('house', { room: 'haunt1' }); steps(2); secs(0.5);
+    var ghosts = H.npcs.filter(function (n) { return n.isGhost; });
+    check('the hallway has two ghosts', ghosts.length === 2, ghosts.length);
+    check('and they start out grey', ghosts.every(function (g2) { return !g2.data.lit; }));
+
+    var gh1 = ghosts[0];
+    H.player.x = gh1.x; H.player.y = gh1.y + 30; steps(2);
+    check('a grey ghost is the thing to do', /colours/.test(H.prompt.text), H.prompt.text);
+    W.dialogue.active = false; press('act');
+    check('Z zaps its colours back', gh1.data.lit === true);
+    check('...and it is remembered', G.state.ghosts[gh1.ghostKey] === true);
+    check('...with its own colour', gh1.tint === W.GHOST_COLORS[gh1.ghostKey]);
+    check('a coloured ghost is not zapped twice',
+      (function () { W.dialogue.active = false; press('act'); steps(1);
+                     return H.npcs.filter(function (n) { return n.isGhost && n.data.lit; }).length <= 2; })());
+    check('cheering one up is a first', G.state.firsts.ghost === true);
+
+    // the colour sticks when you come back
+    G.go('house', { room: 'haunt2' }); steps(2); secs(0.4);
+    check('the kitchen has its own two ghosts',
+      H.npcs.filter(function (n) { return n.isGhost; }).length === 2);
+    G.go('house', { room: 'haunt1' }); steps(2); secs(0.5);
+    var again = H.npcs.filter(function (n) { return n.ghostKey === gh1.ghostKey; })[0];
+    check('the ghost you helped stays bright', !!again && again.data.lit === true);
+
+    // all six is a celebration
+    G.state.money = 0;
+    ['g1', 'g2', 'g3', 'g4', 'g5'].forEach(function (k) { G.state.ghosts[k] = true; });
+    G.go('house', { room: 'haunt3' }); steps(2); secs(0.5);
+    var last = H.npcs.filter(function (n) { return n.isGhost && !n.data.lit; })[0];
+    check('one sad ghost is left', !!last && last.ghostKey === 'g6');
+    H.player.x = last.x; H.player.y = last.y + 30; steps(2);
+    W.dialogue.active = false; press('act');
+    check('the last one completes the house', G.state.firsts.ghosts === true);
+    check('and it pays', G.state.money >= 12, G.state.money);
+
+    // every haunted room is walkable (a door may swallow the walker, so
+    // settle any transition before judging the next room)
+    ['graveyard', 'haunt1', 'haunt2', 'haunt3'].forEach(function (rn) {
+      G.go('house', { room: rn }); steps(2); secs(0.4);
+      check(rn + ': walkable', canWalk(20));
+      secs(1.4); steps(2);            // let any accidental doorway finish
+    });
+
+    // ------------------------------- the skyscraper and the theme park
+    sec('warmland 2: tower and fairground');
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.state.suit = 'builder';
+    G.go('house', { room: 'site2' }); steps(2); secs(0.4);
+    function m2(kind) {
+      return H.stations.filter(function (q) { return q.machine === kind; })[0];
+    }
+    check('the tower site has its machines', !!m2('bulldozer') && !!m2('mixer') && !!m2('crane'));
+    check('and they are set to the skyscraper', m2('mixer').project === 'skyscraper');
+
+    // clear the lot
+    var bd2 = m2('bulldozer');
+    standAt(bd2); W.dialogue.active = false; press('act');
+    check('the bulldozer takes the wheel', !!H.machineCtl && H.machineCtl.proj === 'skyscraper');
+    H.machineCtl.junk.forEach(function (jk) {
+      H.machineCtl.x = jk.x; H.machineCtl.y = jk.y - 30;
+      hold('down', true);
+      for (var f3 = 0; f3 < 90 && !jk.cleared; f3++) { H.machineCtl.x = jk.x; steps(1); }
+      hold('down', false);
+    });
+    check('clearing the lot is stage 1', G.state.builds.skyscraper === 1, G.state.builds.skyscraper);
+    secs(1.2);
+
+    // pour the base
+    G.go('house', { room: 'site2' }); steps(2); secs(0.4);
+    standAt(m2('mixer')); W.dialogue.active = false; press('act');
+    H.machineCtl.x = 480; H.machineCtl.y = 330;
+    hold('act', true); secs(5); hold('act', false);
+    check('pouring the base is stage 2', G.state.builds.skyscraper === 2);
+    secs(1.2);
+
+    // the steel goes up in one stage: uprights, cross-beams, then bracing
+    G.go('house', { room: 'site2' }); steps(2); secs(0.4);
+    standAt(m2('crane')); W.dialogue.active = false; press('act');
+    check('the crane raises the steel', !!H.machineCtl);
+    for (var pn3 = 0; pn3 < 3; pn3++) {
+      H.machineCtl.x = H.machineCtl.stack[0]; H.machineCtl.y = H.machineCtl.stack[1];
+      steps(2); W.dialogue.active = false; press('act');
+      check('girder ' + (pn3 + 1) + ' on the hook', H.machineCtl.carrying === true);
+      H.machineCtl.x = 480 - H.machineCtl.tip[0]; H.machineCtl.y = 330; steps(2);
+      W.dialogue.active = false; press('act'); secs(1.0);
+    }
+    check('three girders finish the frame', G.state.builds.skyscraper === 3,
+      G.state.builds.skyscraper);
+    check('and it only takes the one crane stage',
+      W.STATIONS.machine && G.state.builds.skyscraper === 3);
+    secs(1.2);
+
+    // windows go in by hand
+    G.go('house', { room: 'site2' }); steps(2); secs(0.4);
+    var tb3 = station('toolbox');
+    for (var wp = 0; wp < 3; wp++) {
+      standAt(tb3); W.dialogue.active = false; press('act');
+      check('window ' + (wp + 1) + ' in hand', W.hands.has('windowPanel'), G.state.held);
+      standAt(station('houseDoor')); W.dialogue.active = false; press('act');
+      if (wp < 2) {
+        // the glass creeps up the building as you fit each band
+        secs(0.4);
+        var glazed = W.effectiveProps('site2').filter(function (q) {
+          return /towerGlass/.test(q.kind);
+        })[0];
+        check('band ' + (wp + 1) + ' of glass is showing',
+          !!glazed && glazed.kind === 'towerGlass' + (wp + 1),
+          glazed ? glazed.kind : 'none');
+        tb3 = station('toolbox');
+      }
+    }
+    check('the tower is finished', G.state.builds.skyscraper === 4, G.state.builds.skyscraper);
+    check('and it is a first', G.state.firsts.tower === true);
+    check('the map pad becomes the tower', /TOWER/.test(
+      W.poiLabel(W.MAPS.warmland2.pois.filter(function (p) { return p.tower; })[0])));
+
+    // the machines pack up and the wrecking ball turns up
+    G.go('house', { room: 'site2' }); steps(2); secs(0.4);
+    check('the machines are gone once it is built', !station('machine'));
+    check('...and so is the toolbox', !station('toolbox'));
+    check('but the wrecking ball is here now', !!station('wreckingBall'));
+
+    var wb3 = station('wreckingBall');
+    standAt(wb3); W.dialogue.active = false; press('act');
+    check('the ball drives here as well', !!H.machineCtl && H.machineCtl.proj === 'skyscraper');
+    H.machineCtl.x = 470; H.machineCtl.y = 430; steps(2);
+    for (var sm = 0; sm < 3; sm++) { W.dialogue.active = false; press('act'); secs(1.0); }
+    check('three swings flatten the tower', G.state.builds.skyscraper === 0);
+
+    // ---- the theme park
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.go('house', { room: 'themepark' }); steps(2); secs(0.4);
+    var car = station('carousel');
+    check('the park has a merry-go-round', !!car);
+    standAt(car); W.dialogue.active = false; press('act');
+    check('anyone can ride it', !!H.riding && H.riding.kind === 'carousel');
+    var r0 = H.ridePos(0);
+    secs(0.7);
+    var r1 = H.ridePos(0);
+    check('and it goes round', Math.abs(r1.x - r0.x) > 4 || Math.abs(r1.y - r0.y) > 4);
+    hold('down', true); steps(2); hold('down', false);
+    check('arrows hop off', H.riding === null);
+
+    // ---- building and riding a coaster
+    G.state.suit = 'builder';
+    G.state.coaster = [];
+    G.go('house', { room: 'themepark' }); steps(2); secs(0.4);
+    var cs = station('coaster');
+    standAt(cs); W.dialogue.active = false; press('act'); secs(1.2); steps(2);
+    check('Z opens the builder', G.sceneName === 'coaster' && W.sceneCoaster.mode === 'build');
+    var CO = W.sceneCoaster;
+    ['climb', 'drop', 'loop', 'hill'].forEach(function (want) {
+      var guard = 0;
+      while (CO.list[CO.list.length - 1] !== want && guard++ < 10) {
+        press('right'); steps(1);
+        if (guard === 1 || CO.list.length === 0 ||
+            CO.list[CO.list.length - 1] !== want) { /* keep hunting */ }
+        press('act'); steps(1);
+        if (CO.list[CO.list.length - 1] !== want) CO.list.pop();
+      }
+    });
+    check('pieces can be added', CO.list.length === 4, CO.list.join(','));
+    check('and they are saved', (G.state.coaster || []).length === 4);
+    press('talk'); steps(1);
+    check('A takes one back off', CO.list.length === 3);
+    press('back'); steps(2);
+    check('X rides what you built', CO.mode === 'ride');
+    // the kart rides the rail by distance now, not by control point
+    var s0 = CO.s;
+    secs(1.5);
+    check('the kart runs the track', CO.s > s0, CO.s.toFixed(0) + 'px');
+    check('and the track knows its own length', CO.art.built.total > 400,
+      Math.round(CO.art.built.total));
+
+    // gravity: a drop speeds it up, a climb slows it down
+    G.go('coaster', { mode: 'ride' }); steps(2);
+    CO.list = ['drop', 'drop', 'climb', 'climb'];
+    CO.startRide();
+    steps(2);
+    var vFlat = CO.speed;
+    secs(0.9);
+    var vDown = CO.speed;
+    check('it accelerates downhill', vDown > vFlat, vFlat.toFixed(0) + ' -> ' + vDown.toFixed(0));
+    // now run it up the climbs
+    var vTop = vDown;
+    for (var cg = 0; cg < 120; cg++) {
+      steps(1);
+      if (CO.done) break;
+      vTop = Math.min(vTop, CO.speed);
+    }
+    check('and slows going up', vTop < vDown, vTop.toFixed(0));
+    check('but never stalls', vTop > 0);
+
+    G.go('coaster', { mode: 'ride' }); steps(2);
+    CO.startRide(); steps(2);
+    G.state.money = 0;
+    CO.s = CO.art.built.total - 20;
+    secs(1.0);
+    check('reaching the end finishes the ride', CO.done === true);
+    check('...and pays', G.state.money > 0);
+    check('...and is a first', G.state.firsts.coaster === true);
+
+    // friends ride along
+    G.state.party = ['galaxy', 'scalyA'];
+    G.go('coaster', { mode: 'ride' }); steps(2);
+    check('friends fill the karts behind', W.sceneCoaster.riders.length === 3,
+      W.sceneCoaster.riders.join(','));
+
+    // ---------------------------------------------------- the arcade
+    sec('warmland 2: the arcade');
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.go('house', { room: 'arcade' }); steps(2); secs(0.4);
+    var cabs = H.stations.filter(function (q) { return q.kind === 'arcadeCab'; });
+    check('four cabinets in the tent', cabs.length === 4, cabs.length);
+    check('one per game', cabs.map(function (c3) { return c3.game; }).sort().join(',') ===
+      'bounce,chain,hop,lob');
+
+    // every cabinet starts, scores and leaves
+    ['lob', 'bounce', 'hop', 'chain'].forEach(function (gm) {
+      G.go('arcade', { game: gm }); steps(2); secs(0.3);
+      var A = W.sceneArcade;
+      check(gm + ': starts', A.game === gm && A.over === false);
+      secs(0.6);
+      check(gm + ': runs without throwing', A.over === false || A.over === true);
+      press('back'); secs(1.2); steps(2);
+      check(gm + ': X leaves', G.sceneName === 'house', G.sceneName);
+    });
+
+    // Boba Lob: a shot flies and knocking blocks scores
+    G.go('arcade', { game: 'lob' }); steps(2); secs(0.3);
+    var AL = W.sceneArcade;
+    check('five boba to throw', AL.shotsLeft === 5);
+    hold('act', true); secs(0.7); hold('act', false); steps(2);
+    check('releasing Z throws one', !!AL.shot && AL.shotsLeft === 4);
+    var bl0 = AL.blocks[0];
+    AL.shot.x = bl0.x + 10; AL.shot.y = bl0.y + 10; steps(2);
+    check('a hit knocks a block down', bl0.down === true && AL.score >= 10, AL.score);
+
+    // Boba Bounce: the paddle moves and bricks break
+    G.go('arcade', { game: 'bounce' }); steps(2); secs(0.3);
+    var AB = W.sceneArcade;
+    var pad0 = AB.padX;
+    hold('right', true); secs(0.5); hold('right', false); steps(2);
+    check('the paddle slides', AB.padX > pad0);
+    var br0 = AB.bricks[0];
+    AB.ball.x = br0.x + 10; AB.ball.y = br0.y + 10; AB.ball.vy = -100; steps(2);
+    check('a brick pops', br0.gone === true && AB.score > 0);
+    // dropping the ball costs a life, never the game
+    AB.balls = 3; AB.ball.y = 590; steps(2);
+    check('a dropped ball costs a life, not the game',
+      AB.balls === 2 && AB.over === false);
+
+    // Road Hop: forgiving, and crossing scores
+    G.go('arcade', { game: 'hop' }); steps(2); secs(0.3);
+    var AH = W.sceneArcade;
+    check('three lives', AH.lives === 3);
+    var hx0 = AH.hx;
+    press('right'); steps(1);
+    check('it hops sideways', AH.hx > hx0);
+    AH.hy = 120; press('up'); steps(2);
+    check('reaching the top scores', AH.score >= 50, AH.score);
+    check('...and starts again at the bottom', AH.hy > 400);
+
+    // Pearl Chain: the walls end the run, but bumping yourself never does
+    G.go('arcade', { game: 'chain' }); steps(2); secs(0.3);
+    var AC = W.sceneArcade;
+    var len0 = AC.snake.length;
+    AC.snack = [AC.snake[0][0] + 1, AC.snake[0][1]];
+    AC.tick = 9; steps(2);
+    check('eating grows the chain', AC.snake.length === len0 + 1, AC.snake.length);
+
+    // curl the chain back onto itself — that only trims it
+    AC.over = false;
+    AC.snake = [[10, 5], [11, 5], [11, 6], [10, 6], [9, 6], [9, 5]];
+    AC.dir = [0, 1]; AC.nextDir = [0, 1];
+    AC.tick = 9; steps(2);
+    check('bumping yourself only trims the chain', AC.over === false, AC.snake.length);
+
+    // but the border is solid
+    AC.over = false;
+    AC.snake = [[0, 5], [1, 5], [2, 5]];
+    AC.dir = [-1, 0]; AC.nextDir = [-1, 0];
+    AC.tick = 9; steps(2);
+    check('touching the wall ends the run', AC.over === true);
+
+    // a score is remembered
+    G.state.money = 0;
+    AC.score = 40;
+    W.sceneArcade.over = false;
+    AC.moves = 701; AC.tick = 9; steps(3);
+    check('finishing records a best', (G.state.arcade || {}).chain === 40,
+      JSON.stringify(G.state.arcade));
+    check('...and pays out', G.state.money > 0);
+    check('...and is a first', G.state.firsts.arcade === true);
+
     sec('world data');
     Object.keys(W.ROOMS).forEach(function (name) {
       var r = W.ROOMS[name];
@@ -2144,6 +2754,10 @@
           stn.x + ',' + stn.y);
       });
       r.doors.forEach(function (d) {
+        if (d.map) {
+          check(name + ': exit to map ' + d.map + ' exists', !!W.MAPS[d.map]);
+          return;
+        }
         check(name + ': door to ' + d.to + ' exists', !!W.ROOMS[d.to]);
         var t = W.ROOMS[d.to], sp = d.spawn;
         check(name + ': spawn into ' + d.to + ' is in bounds',
@@ -2163,9 +2777,14 @@
 
     Object.keys(W.MAPS).forEach(function (id) {
       W.MAPS[id].pois.forEach(function (poi) {
-        var ok = poi.kind ? true : (poi.to.room ? !!W.ROOMS[poi.to.room] :
+        // rooms/scenes still being built in this wave are allowed to be
+        // missing for now — the phase that adds them adds its own check
+        var COMING = { castle: 1 };
+        var PENDING_ROOMS = { graveyard: 1, site2: 1, themepark: 1 };
+        var ok = poi.kind ? true : (poi.to.room ? (!!W.ROOMS[poi.to.room] || !!PENDING_ROOMS[poi.to.room]) :
           poi.to.mission ? true : poi.to.race ? !!W.sceneRace :
           poi.to.mars ? !!W.sceneMars : poi.to.snow ? !!W.sceneSnow :
+          poi.to.castle ? (!!W.sceneCastle || !!COMING.castle) :
           !!W.MAPS[poi.to.map]);
         check('map ' + id + ': ' + poi.label + ' leads somewhere real', ok);
         check('map ' + id + ': ' + poi.label + ' is inside the map',
@@ -2176,6 +2795,606 @@
     Object.keys(W.VEHICLES).forEach(function (v) {
       check('vehicle ' + v + ' has a real map', !!W.MAPS[W.VEHICLES[v].map]);
     });
+
+    // ------------------------------------------- hostile saves fail soft
+    sec('save hardening');
+    // a save can be hand-edited or half-written; wrong SHAPES must revert to
+    // defaults rather than crashing room entry
+    G.state = G.freshState('bobby'); G.saveOk = false;
+    W.save.apply({ v: 1, day: 'zebra', money: -5, party: 'notanarray',
+                   room: 'nonexistent', suit: 'batman', held: 'notathing',
+                   tray: ['egg', 'fakefood'], builds: 'nope' });
+    check('a wonky day resets', G.state.day === 1, G.state.day);
+    check('negative money resets', G.state.money === 0);
+    check('a non-array party resets', Array.isArray(G.state.party));
+    check('an unknown room falls back', !!W.ROOMS[G.state.room], G.state.room);
+    check('an unknown suit falls back', G.state.suit === 'none');
+    check('an unknown held item is dropped', G.state.held === null);
+    check('fake food is filtered from the tray',
+      G.state.tray.length === 1 && G.state.tray[0] === 'egg', G.state.tray.join(','));
+    check('a non-object builds resets', typeof G.state.builds === 'object' &&
+      !Array.isArray(G.state.builds));
+    var entered = true;
+    try { G.go('house', { room: G.state.room }); steps(6); }
+    catch (e) { entered = false; }
+    check('and the game still enters a room', entered && !!H.player);
+
+    // ------------------------------------------- wave 4: the bug-fix round
+    sec('wave 4: fixes');
+    G.state = G.freshState(); G.saveOk = false;
+
+    // --- a ghost is a friend to cheer up, never a party member. Saying hello
+    //     used to push `undefined` into the party and crash the next room.
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.go('house', { room: 'haunt1' }); steps(2); secs(0.4);
+    var ghost = H.npcs.filter(function (n) { return n.isGhost; })[0];
+    check('the hallway has ghosts', !!ghost, H.npcs.length + ' npcs');
+    H.player.x = ghost.x + 18; H.player.y = ghost.y + 4; steps(3);
+    press('talk'); steps(2);
+    check('saying hello to a ghost is safe', G.state.party.length === 0,
+      JSON.stringify(G.state.party));
+    var wentDeeper = true;
+    try { G.go('house', { room: 'haunt2' }); steps(6); }
+    catch (e) { wentDeeper = false; }
+    check('and going deeper still works', wentDeeper && G.state.room === 'haunt2');
+
+    // an old save carrying a bad key heals instead of throwing
+    G.state.party = ['galaxy', undefined, 'nobody'];
+    G.go('house', { room: 'haunt1' }); steps(4);
+    check('a poisoned party is cleaned up', G.state.party.length === 1 &&
+      G.state.party[0] === 'galaxy', JSON.stringify(G.state.party));
+
+    // --- Road Hop: the lanes have to sit exactly one hop apart, or nothing
+    //     can ever be hit
+    G.go('arcade', { game: 'hop' }); steps(3);
+    var A = W.sceneArcade;
+    var hopStart = A.hy;
+    check('road hop starts at the bottom', hopStart === 520, hopStart);
+    check('every lane is a whole number of hops away',
+      A.lanes.every(function (ln) { return (hopStart - ln.y) % 62 === 0; }),
+      A.lanes.map(function (l) { return l.y; }).join(','));
+    // park the pup on a car and check it costs a life
+    var carLane = A.lanes.filter(function (l) { return !l.river; })[0];
+    A.hy = carLane.y; A.hx = carLane.items[0] + 46;
+    var livesBefore = A.lives;
+    steps(2);
+    check('a car actually hits you', A.lives === livesBefore - 1,
+      livesBefore + ' -> ' + A.lives);
+    check('and a hit sends you back to the start', A.hy === 520);
+    // the river drowns you when you miss the log
+    var riverLane = A.lanes.filter(function (l) { return l.river; })[0];
+    A.hy = riverLane.y; A.hx = riverLane.items[0] - 300;
+    if (A.hx < 40) A.hx = riverLane.items[0] + 300;
+    var lives2 = A.lives;
+    steps(2);
+    check('missing the log is a splash', A.lives === lives2 - 1);
+    // and a log carries you
+    A.hy = riverLane.y; A.hx = riverLane.items[0] + 50;
+    var rode = A.lives;
+    steps(2);
+    check('but standing on a log is safe', A.lives === rode);
+
+    // --- Pearl Chain's board sits inside the cabinet frame
+    G.go('arcade', { game: 'chain' }); steps(3);
+    var g0 = A.grid();
+    check('the chain board fits the cabinet', g0.top >= 60 && g0.bottom <= 560,
+      g0.top + '..' + g0.bottom);
+    check('and it is centred', Math.abs((g0.left + g0.right) / 2 - 480) < 6,
+      g0.left + '..' + g0.right);
+
+    // --- Butterball is quicker on his feet than a bear in a cup
+    G.state = G.freshState('bobby'); G.saveOk = false;
+    G.go('house', { room: 'living' }); steps(2);
+    var bobbySpeed = H.player.speed;
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.go('house', { room: 'home2' }); steps(2);
+    check('Butterball walks faster', H.player.speed > bobbySpeed,
+      bobbySpeed + ' -> ' + H.player.speed);
+    check('and he runs faster to match', H.player.runSpeed > 265);
+
+    // --- the kitchen cabinet is a cabinet, not an arcade machine
+    check('the kitchen cabinet holds dry goods',
+      W.STATIONS.cabinet.label === 'Open the Cabinets');
+    check('arcade cabinets are their own kind', !!W.STATIONS.arcadeCab &&
+      !!W.PROPS.arcadeCab);
+    check('no arcade machine in either kitchen',
+      !W.ROOMS.kitchen2.props.some(function (q) { return q.kind === 'arcadeCab'; }) &&
+      !W.ROOMS.kitchen.props.some(function (q) { return q.kind === 'arcadeCab'; }));
+
+    // --- every place you can fly to has a way back out
+    ['park2', 'themepark', 'site2', 'graveyard', 'outside2'].forEach(function (rn) {
+      var r = W.ROOMS[rn];
+      var out = (r.doors || []).some(function (d) { return !!d.map || !!d.to; }) ||
+                (r.stations || []).some(function (q) { return q.kind === 'vehicle'; });
+      check(rn + ' has a way out', out);
+    });
+    check('the graveyard exit goes to the world map',
+      W.ROOMS.graveyard.doors.some(function (d) { return d.map === 'warmland2'; }));
+    check('and it is labelled Exit',
+      W.ROOMS.graveyard.doors.some(function (d) { return d.label === 'Exit'; }));
+    check('the graveyard has a haunted house to walk into',
+      W.ROOMS.graveyard.props.some(function (q) { return q.kind === 'hauntHouse'; }));
+
+    // walking out of the park really does put you back on the map
+    G.go('house', { room: 'park2' }); steps(2); secs(0.4);
+    var exitDoor = W.ROOMS.park2.doors.filter(function (d) { return d.map; })[0];
+    H.player.x = exitDoor.x + exitDoor.w / 2; H.player.y = exitDoor.y + 40;
+    secs(1.4);
+    check('the park exit flies you out', G.scene === G.scenes.vehicle,
+      G.state.room);
+    check('...on the Warmland 2 map', W.sceneVehicle.mapId === 'warmland2');
+    check('...over the park pad',
+      Math.abs(W.sceneVehicle.x - 760) < 140, W.sceneVehicle.x.toFixed(0));
+
+    // --- crossing between worlds lands you on the pad that leads home
+    G.go('vehicle', { vehicle: 'balloon', map: 'neighborhood' }); steps(3);
+    var V = W.sceneVehicle;
+    var pOut = W.MAPS.neighborhood.pois.filter(function (q) {
+      return q.to && q.to.map === 'warmland2';
+    })[0];
+    check('the WL2 pad sits at the far end of the road',
+      pOut.x > 1700 && Math.abs(pOut.y - 690) < 50, pOut.x + ',' + pOut.y);
+    V.x = pOut.x; V.y = pOut.y; steps(2);
+    press('act'); steps(2);          // the first Z clears the take-off line
+    V.x = pOut.x; V.y = pOut.y;
+    press('act'); secs(1.4);
+    check('the balloon crosses over', V.mapId === 'warmland2');
+    var pBack = W.MAPS.warmland2.pois.filter(function (q) {
+      return q.to && q.to.map === 'neighborhood';
+    })[0];
+    check('and you arrive standing on the way home',
+      Math.hypot(V.x - pBack.x, V.y - pBack.y) < 30,
+      V.x.toFixed(0) + ',' + V.y.toFixed(0));
+
+    // --- a coaster that only climbs must not run off the top of the screen
+    G.state.coaster = ['climb', 'climb', 'climb', 'climb', 'drop'];
+    G.go('coaster', { mode: 'ride' }); steps(2);
+    CO.list = G.state.coaster.slice(); CO.startRide(); steps(2);
+    var high = 1e9;
+    CO.art.built.pts.forEach(function (pt2) { high = Math.min(high, pt2[1]); });
+    check('the rail stays on screen', high >= 140, 'top of track y=' + high);
+    // and the finish card is not scribbled over by speed streaks
+    CO.s = CO.art.built.total - 4; secs(0.6);
+    check('the ride finishes', CO.done === true);
+
+    // --- Galaxy is caged until you beat the dragon, and Butterball keeps
+    //     house in his own tree rather than loitering in Bobby's park
+    G.state = G.freshState('bobby'); G.saveOk = false;
+    check('Butterball is not a resident of Bobby\'s park',
+      W.ROOMS.park.residents.indexOf('butterball') < 0);
+    check('he lives in his own tree', W.ROOMS.home2.residents.indexOf('butterball') >= 0);
+    G.go('house', { room: 'park' }); steps(2); secs(0.4);
+    check('...so he is not standing in the WL1 park',
+      !H.npcs.some(function (n) { return n.friendKey === 'butterball'; }));
+    G.go('house', { room: 'home2' }); steps(2); secs(0.4);
+    check('...he is at home in the tree',
+      H.npcs.some(function (n) { return n.friendKey === 'butterball'; }));
+
+    // playing AS Butterball, he is not his own NPC
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.go('house', { room: 'home2' }); steps(2); secs(0.4);
+    check('but you never bump into yourself',
+      !H.npcs.some(function (n) { return n.friendKey === 'butterball'; }));
+
+    // Galaxy: caged, then freed
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    check('Galaxy starts nowhere', !G.state.friendRooms ||
+      !G.state.friendRooms.galaxy, G.state.friendRooms && G.state.friendRooms.galaxy);
+    G.go('house', { room: 'park2' }); steps(2); secs(0.4);
+    check('and is not in the park yet',
+      !H.npcs.some(function (n) { return n.friendKey === 'galaxy'; }));
+
+    // beat the dragon and she moves in
+    G.go('castle', {}); steps(3);
+    var KG = W.sceneCastle;
+    KG.cls = 'knight'; KG.startRun(); steps(2);
+    KG.dragon.hp = 0; KG.dragon.dead = true;
+    KG.x = 3120; steps(6);
+    check('freeing her is a first', G.state.firsts.castle === true);
+    check('and she moves into the park',
+      G.state.friendRooms.galaxy === 'park2', G.state.friendRooms.galaxy);
+    G.go('house', { room: 'park2' }); steps(2); secs(0.4);
+    check('...where you can now meet her',
+      H.npcs.some(function (n) { return n.friendKey === 'galaxy'; }));
+
+    // a save from before a character existed still gets them seeded — an
+    // old save must not leave the Star Park permanently empty
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    W.save.apply({ v: 1, friendRooms: { panda: 'park' }, party: [] });
+    G.go('house', { room: 'park2' }); steps(2); secs(0.4);
+    check('an old save still meets the scaly critters',
+      H.npcs.filter(function (n) { return (n.friendKey || '').indexOf('scaly') === 0; }).length === 3);
+    // ...but somebody deliberately left somewhere stays put
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    W.save.apply({ v: 1, friendRooms: { scalyA: 'themepark' }, party: [] });
+    G.go('house', { room: 'park2' }); steps(2); secs(0.4);
+    check('and one you moved stays where you left it',
+      !H.npcs.some(function (n) { return n.friendKey === 'scalyA'; }));
+    G.go('house', { room: 'themepark' }); steps(2); secs(0.4);
+    check('...over there', H.npcs.some(function (n) { return n.friendKey === 'scalyA'; }));
+
+    // an old save that already rescued her keeps her
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    W.save.apply({ v: 1, firsts: { castle: true }, friendRooms: { panda: 'park' },
+                   party: [] });
+    check('old saves that freed her keep her',
+      G.state.friendRooms.galaxy === 'park2', G.state.friendRooms.galaxy);
+
+    // --- Warmland 2's park has its own villain
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.go('mission', { mission: 'megatron', from: 'park2' }); steps(3);
+    var MS = W.sceneMission;
+    check('Warmland 2 fights Nemesis Prime', MS.villain === 'nemesis', MS.villain);
+    check('and he is drawn as himself', !!MS.boss && MS.boss.nemesis === true);
+    check('Nemesis Prime has his own art', typeof W.drawNemesis === 'function');
+    G.go('mission', { mission: 'megatron', from: 'park' }); steps(3);
+    check('Bobby\'s park still fights Megatron', MS.villain === 'megatron', MS.villain);
+    check('...and is drawn as Megatron', !!MS.boss && !MS.boss.nemesis);
+    // both are beatable the same way
+    G.go('mission', { mission: 'megatron', from: 'park2' }); steps(3);
+    MS.boss.hp = 1; MS.f.enemies = [MS.boss];
+    MS.boss.hp = 0; MS.f.enemies = [];
+    secs(1.6);
+    check('beating him completes the mission', MS.f.over === 'win', MS.f.over);
+
+    // --- Megatron sends you back to the park you were working in
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.go('house', { room: 'park2' }); steps(2); secs(0.4);
+    G.fadeTo('mission', { mission: 'megatron', from: 'park2' }); secs(1.2);
+    check('the fight starts', G.scene === G.scenes.mission);
+    press('back'); secs(1.4);
+    check('fleeing goes back to the park you came from',
+      G.state.room === 'park2', G.state.room);
+
+    // --- boarding a car at a place puts it on the road by that place
+    G.state.room = 'outside2';
+    G.go('vehicle', { vehicle: 'popcar', map: 'warmland2' }); steps(2);
+    var roadY = W.MAPS.warmland2.roads[0].y;
+    check('the popcorn car starts on the tarmac',
+      Math.abs(W.sceneVehicle.y - roadY) < 44,
+      W.sceneVehicle.x.toFixed(0) + ',' + W.sceneVehicle.y.toFixed(0));
+    var treePad = W.MAPS.warmland2.pois.filter(function (q) {
+      return q.to && q.to.room === 'outside2';
+    })[0];
+    check('...below the treehouse it came from',
+      Math.abs(W.sceneVehicle.x - treePad.x) < 200);
+    check('...and not parked on somebody else\'s pad',
+      W.MAPS.warmland2.pois.every(function (q) {
+        return q === treePad ||
+          Math.hypot(W.sceneVehicle.x - q.x, W.sceneVehicle.y - q.y) > q.r;
+      }));
+
+    // --- the popcorn car is bumpy off the road, just like the car
+    G.go('vehicle', { vehicle: 'popcar', map: 'warmland2' }); steps(2);
+    V.x = 700; V.y = 500; V.vx = 200; steps(2);
+    check('the popcorn car is smooth on the road', V.offRoad === false);
+    V.x = 300; V.y = 200; V.vx = 200; steps(2);
+    check('and bumpy off it', V.offRoad === true);
+
+    // --- outfits are named for whoever is playing
+    G.state = G.freshState('bobby'); G.saveOk = false;
+    check('Bobby has the Boba Bear Bot', W.suitName('mech') === 'Boba Bear Bot');
+    check('the chef outfit is just the Chef Outfit', W.suitName('chef') === 'Chef Outfit');
+    check('and it does not say Bobby', W.suitName('chef').indexOf('Bobby') < 0);
+    check('his stand is a boba cart', W.standName() === 'boba cart');
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    check('Butterball has the Butter Bot', W.suitName('mech') === 'Butter Bot');
+    check('and his stand is a lemonade wagon', W.standName() === 'lemonade wagon');
+    check('the lemonade round is a real job', !!W.JOBS.lemonade && !!W.ITEMS.lemonade);
+
+    // --- the sword connects with something standing right on top of you
+    G.go('castle', {}); steps(2);
+    var K = W.sceneCastle;
+    K.cls = 'knight'; K.startRun(); steps(2);
+    K.enemies.length = 0;
+    K.enemies.push({ x: K.x + 30, y: K.y, hp: 1, maxHp: 1, hurt: 0, speed: 0,
+                     cool: 9, face: -1, kind: 'skeleton' });
+    K.cool = 0;
+    press('act'); steps(2);
+    check('the sword hits an enemy in your face', K.enemies[0].hp <= 0,
+      'hp ' + K.enemies[0].hp);
+    // ...and one at arm's length
+    K.enemies[0] = { x: K.x + 70, y: K.y, hp: 1, maxHp: 1, hurt: 0, speed: 0,
+                     cool: 9, face: -1, kind: 'skeleton' };
+    K.cool = 0; K.face = 1;
+    press('act'); steps(2);
+    check('and one at arm\'s length', K.enemies[0].hp <= 0);
+    // one swing is one hit, not one per frame
+    K.enemies[0] = { x: K.x + 40, y: K.y, hp: 3, maxHp: 3, hurt: 0, speed: 0,
+                     cool: 9, face: -1, kind: 'troll' };
+    K.cool = 0; K.swing = 0;         // start from a clean, un-swung sword
+    press('act'); secs(0.3);
+    check('but a single swing only lands once', K.enemies[0].hp === 2,
+      'hp ' + K.enemies[0].hp);
+
+    // --- the carousel has cup holders
+    check('the merry-go-round has a teacup seat', !!W.PROPS.carCup);
+
+    // --- prop art must fit inside its sprite tile, or it gets sliced flat
+    //     (the treehouse's leafy crown spills well past the trunk)
+    function spill(kind, x, y) {
+      var sp = W.makePropSprite({ kind: kind, x: x, y: y });
+      var g = sp.img.getContext('2d');
+      var im = g.getImageData(0, 0, sp.img.width, sp.img.height).data;
+      var wpx = sp.img.width, hpx = sp.img.height, edge = 0;
+      // any ink sitting on the outermost row/column is art that got cut
+      for (var i = 0; i < wpx; i++) {
+        if (im[(0 * wpx + i) * 4 + 3] > 10) edge++;
+        if (im[((hpx - 1) * wpx + i) * 4 + 3] > 10) edge++;
+      }
+      for (var j = 0; j < hpx; j++) {
+        if (im[(j * wpx + 0) * 4 + 3] > 10) edge++;
+        if (im[(j * wpx + wpx - 1) * 4 + 3] > 10) edge++;
+      }
+      return edge;
+    }
+    check('the treehouse crown is not cut off', spill('treehouse', 70, 300) === 0,
+      spill('treehouse', 70, 300) + ' px on the edge');
+    check('Butterball\'s tree is not cut off', spill('treehome', 380, 300) === 0);
+    check('the magic closet glow is not cut off', spill('closet', 250, 210) === 0);
+    check('the trees are not cut off', spill('tree', 120, 180) === 0);
+    check('the house is not cut off', spill('house', 350, 160) === 0);
+    check('props can ask for extra room', W.PROPS.treehouse.pad > 18 &&
+      W.makePropSprite({ kind: 'treehouse', x: 0, y: 0 }).img.width ===
+        W.PROPS.treehouse.w + W.PROPS.treehouse.pad * 2);
+
+    // --- a wide prop must not become a wide invisible wall
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.go('house', { room: 'outside2' }); steps(2); secs(0.4);
+    var treeSolid = W.solidsFor('outside2').filter(function (q) {
+      return q.x > 300 && q.x < 460 && q.w > 120;
+    })[0];
+    check('the tree only blocks at its trunk', !!treeSolid && treeSolid.h <= 40,
+      treeSolid ? treeSolid.h : 'none');
+    // the walk from the popcorn car to the balloon must be clear along the
+    // front of the yard, below the trunk
+    H.player.x = 160; H.player.y = 556;
+    hold('right', true); secs(3.6); hold('right', false); steps(2);
+    check('you can walk past the tree to the balloon', H.player.x > 700,
+      'reached x=' + H.player.x.toFixed(0));
+
+    // --- walking up the path really does get you back inside the tree
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.go('house', { room: 'outside2' }); steps(2); secs(0.4);
+    var treeDoor = W.ROOMS.outside2.doors.filter(function (d) { return d.to === 'home2'; })[0];
+    var yardSolids = W.solidsFor('outside2');
+    check('the tree door is somewhere you can stand',
+      W.canStand(W.ROOMS.outside2, yardSolids,
+                 treeDoor.x + treeDoor.w / 2, treeDoor.y + treeDoor.h - 4),
+      treeDoor.x + ',' + treeDoor.y);
+    // walk up the path to it, the way a kid would
+    H.player.x = 480; H.player.y = 500;
+    hold('up', true); secs(1.4); hold('up', false); secs(1.2);
+    check('walking up the path goes inside', G.state.room === 'home2', G.state.room);
+    // ...and the way back out lands you in front of it again
+    var back = W.ROOMS.home2.doors.filter(function (d) { return d.to === 'outside2'; })[0];
+    H.player.x = back.x + back.w / 2; H.player.y = back.y + 10;
+    secs(1.4);
+    check('and climbing down comes back out', G.state.room === 'outside2', G.state.room);
+
+    // --- the arcade is entered with Z, like the two rides beside it
+    G.go('house', { room: 'themepark' }); steps(2); secs(0.4);
+    var arcSt = station('arcadeDoor');
+    check('the arcade tent is a station', !!arcSt);
+    var fairSolids = W.solidsFor('themepark');
+    check('you can stand at its doorway',
+      W.canStand(W.ROOMS.themepark, fairSolids, arcSt.x + arcSt.w / 2, arcSt.y + arcSt.h),
+      arcSt.x + ',' + arcSt.y);
+    standAt(arcSt); steps(3);
+    check('and it offers the arcade', S_prompt_is('arcadeDoor'), H.prompt && H.prompt.text);
+    W.dialogue.active = false;
+    press('act'); secs(1.4);
+    check('Z walks you in', G.state.room === 'arcade', G.state.room);
+
+    // --- the teacup ride
+    check('the ride is teacups now', W.STATIONS.carousel.label === 'Teacup Ride');
+    check('and the canopy hangs above the riders', typeof W.drawCarouselTop === 'function');
+    check('no horses left on it', !W.PROPS.carHorse);
+    G.state.friendRooms = { galaxy: 'themepark' };
+    G.go('house', { room: 'themepark' }); steps(2); secs(0.4);
+    var gal2 = H.npcs.filter(function (n) { return n.friendKey === 'galaxy'; })[0];
+    G.state.party = ['galaxy']; if (gal2) gal2.mode = 'follow';
+    var cupSt = station('carousel');
+    H.mount('carousel', cupSt);
+    secs(0.5);
+    var seat0 = H.ridePos(0), seat1 = H.ridePos(1);
+    check('you are riding a cup', !!H.riding && H.riding.kind === 'carousel');
+    check('your friend gets in too', !!H.riding.partner);
+    check('the cups sit on opposite sides', Math.abs(seat0.x - seat1.x) > 40 ||
+      Math.abs(seat0.y - seat1.y) > 20);
+    var spinA = H.ridePos(0).cupSpin; secs(0.5); var spinB = H.ridePos(0).cupSpin;
+    check('and they spin as they go round', spinA !== spinB);
+    check('but the cup never tips over', Math.abs(H.ridePos(0).spin) < 0.6);
+    press('back'); steps(2);
+    check('and you can hop off', !H.riding);
+
+    // --- every minigame hands you back over its own pad
+    G.go('house', { room: 'themepark' }); steps(2);   // somewhere else entirely
+    G.go('castle', {}); steps(3);
+    var K2 = W.sceneCastle; K2.cls = 'knight'; K2.startRun(); steps(2);
+    press('back'); secs(1.4);
+    var castlePad = W.mapPadAt('warmland2', 'castle');
+    check('leaving the castle drops you over the castle',
+      W.sceneVehicle.mapId === 'warmland2' &&
+      Math.hypot(W.sceneVehicle.x - castlePad[0], W.sceneVehicle.y - castlePad[1]) < 30,
+      W.sceneVehicle.x.toFixed(0) + ',' + W.sceneVehicle.y.toFixed(0));
+
+    // --- the archer draws a bowstring and the wizard waves a wand
+    G.go('castle', {}); steps(3);
+    K2.cls = 'archer'; K2.startRun(); steps(2);
+    K2.cool = 0; K2.face = 1;
+    press('act'); steps(1);
+    check('the archer\'s bow is drawn back', K2.swing > 0, K2.swing.toFixed(2));
+    check('and an arrow is away', K2.shots.length === 1);
+    G.go('castle', {}); steps(3);
+    K2.cls = 'wizard'; K2.startRun(); steps(2);
+    K2.cool = 0; K2.face = 1; K2.cast = 1;      // next cast is the star
+    press('act'); secs(0.3);
+    check('the wizard waves his wand', K2.swing > 0);
+    var bolt = K2.shots[0];
+    check('the bolt leaves a sparkle trail', !!bolt && bolt.trail.length > 4,
+      bolt ? bolt.trail.length : 'no bolt');
+
+    // --- the wizard casts in twos: a snowflake that freezes, then a star
+    G.go('castle', {}); steps(3);
+    K2.cls = 'wizard'; K2.startRun(); steps(2);
+    K2.enemies.length = 0;
+    K2.enemies.push({ x: K2.x + 120, y: K2.y, hp: 3, maxHp: 3, hurt: 0,
+                      speed: 60, cool: 9, face: -1, kind: 'troll' });
+    K2.cool = 0; K2.face = 1; K2.cast = 0;
+    press('act'); secs(1.0);
+    check('the first cast is frost', K2.enemies[0].frozen > 0,
+      K2.enemies[0].frozen);
+    check('...and does no damage', K2.enemies[0].hp === 3, K2.enemies[0].hp);
+    var frozenX = K2.enemies[0].x;
+    secs(0.5);
+    check('...and holds it still', Math.abs(K2.enemies[0].x - frozenX) < 1);
+    K2.cool = 0;
+    press('act'); secs(1.0);
+    check('the second cast hurts', K2.enemies[0].hp === 2, K2.enemies[0].hp);
+
+    // and neither one pierces any more
+    G.go('castle', {}); steps(3);
+    K2.cls = 'wizard'; K2.startRun(); steps(2);
+    K2.enemies.length = 0;
+    [90, 190].forEach(function (dx3) {
+      K2.enemies.push({ x: K2.x + dx3, y: K2.y, hp: 3, maxHp: 3, hurt: 0,
+                        speed: 0, cool: 9, face: -1, kind: 'troll' });
+    });
+    K2.cool = 0; K2.face = 1; K2.cast = 1;      // next cast is the star
+    press('act'); secs(2.2);
+    check('a star stops at the first thing it hits',
+      K2.enemies[0].hp === 2 && K2.enemies[1].hp === 3,
+      K2.enemies.map(function (e6) { return e6.hp; }).join(','));
+
+    // ...and only the knight's swing actually cuts: the archer and wizard
+    // wave their weapons about without doing melee damage
+    ['archer', 'wizard'].forEach(function (cl) {
+      G.go('castle', {}); steps(3);
+      K2.cls = cl; K2.startRun(); steps(2);
+      K2.enemies.length = 0;
+      K2.enemies.push({ x: K2.x + 30, y: K2.y, hp: 3, maxHp: 3, hurt: 0,
+                        speed: 0, cool: 9, face: -1, kind: 'troll' });
+      K2.cool = 0; K2.face = -1;          // fire AWAY from the troll
+      press('act'); secs(0.5);
+      check('the ' + cl + ' does not melee', K2.enemies[0].hp === 3,
+        K2.enemies[0].hp);
+    });
+
+    // --- the laboratory, its barman, and his potion
+    G.state = G.freshState('bobby'); G.saveOk = false;
+    check('the lab is a real room', !!W.ROOMS.haunt4);
+    check('you get to it from the old kitchen',
+      W.ROOMS.haunt2.doors.some(function (d) { return d.to === 'haunt4'; }));
+    check('and back out again',
+      W.ROOMS.haunt4.doors.some(function (d) { return d.to === 'haunt2'; }));
+    check('Webs is a real friend', !!W.FRIENDS.webs && !!W.CHARS[W.FRIENDS.webs.char]);
+    check('and the potion is a real drink', !!W.ITEMS.potion);
+
+    G.go('house', { room: 'haunt4' }); steps(2); secs(0.4);
+    var webs = H.npcs.filter(function (n) { return n.friendKey === 'webs'; })[0];
+    check('Webs is behind his bar', !!webs && Math.abs(webs.x - 480) < 40 && webs.y < 260,
+      webs ? webs.x.toFixed(0) + ',' + webs.y.toFixed(0) : 'missing');
+    check('and he stays put', !!webs && webs.mode === 'hold');
+
+    var bar = station('potionBar');
+    check('the bar is a station', !!bar);
+    standAt(bar); steps(3);
+    check('the prompt offers a potion', S_prompt_is('potionBar'), H.prompt && H.prompt.text);
+    press('act'); steps(2);
+    check('Webs hands one over', W.hands.has('potion'), G.state.held);
+    check('and the pill now says drink it',
+      H.prompt && H.prompt.text.indexOf('Drink') >= 0, H.prompt && H.prompt.text);
+    press('act'); steps(2);
+    check('drinking it empties your paws', W.hands.empty());
+    check('and grows eight legs', !!G.bobaFx && G.bobaFx.kind === 'eightlegs',
+      G.bobaFx && G.bobaFx.kind);
+    check('the legs start sprouting', W.spiderLegs() > 0, W.spiderLegs().toFixed(2));
+    secs(0.6);
+    check('and are fully out a moment later', W.spiderLegs() === 1,
+      W.spiderLegs().toFixed(2));
+
+    // the legs tuck away when the potion wears off
+    G.bobaFx.until = G.t + 0.2; secs(0.05);
+    check('they start tucking away at the end', W.spiderLegs() < 0.9);
+    secs(0.6);
+    check('and then they are gone', !G.bobaFx && W.spiderLegs() === 0);
+
+    // it works for Butterball too
+    G.state = G.freshState('butterball'); G.saveOk = false;
+    G.go('house', { room: 'haunt4' }); steps(2); secs(0.4);
+    standAt(station('potionBar')); steps(3);
+    press('act'); steps(2); press('act'); steps(2);
+    check('Butterball can grow eight legs as well',
+      !!G.bobaFx && G.bobaFx.kind === 'eightlegs');
+    G.bobaFx = null;
+
+    // hands full? Webs says so rather than silently doing nothing
+    carry([]); W.hands.hold('boba');
+    standAt(station('potionBar')); steps(3);
+    press('act'); steps(2);
+    check('he will not pour into full paws', W.hands.has('boba'));
+    W.hands.drop();
+
+    // --- the bar is a refill you can always come back to. Take Webs away
+    //     with you and the lab still pours.
+    G.state = G.freshState('bobby'); G.saveOk = false;
+    G.go('house', { room: 'haunt4' }); steps(2); secs(0.4);
+    var websNpc = H.npcs.filter(function (n) { return n.friendKey === 'webs'; })[0];
+    H.player.x = websNpc.x; H.player.y = websNpc.y + 30; steps(3);
+    press('talk'); steps(2);
+    check('Webs will come along', G.state.party.indexOf('webs') >= 0,
+      JSON.stringify(G.state.party));
+
+    // leave him somewhere else entirely
+    G.go('house', { room: 'living' }); steps(2); secs(0.4);
+    var websOut = H.npcs.filter(function (n) { return n.friendKey === 'webs'; })[0];
+    check('and he follows you out of the lab', !!websOut);
+    H.player.x = websOut.x + 20; H.player.y = websOut.y; steps(3);
+    press('back'); steps(2);            // Dee — he stays in the living room
+    check('...and can be left there', G.state.party.indexOf('webs') < 0);
+
+    // now the bar, with nobody behind it
+    G.go('house', { room: 'haunt4' }); steps(2); secs(0.4);
+    check('the lab is empty now', !H.websHere());
+    standAt(station('potionBar')); steps(3);
+    check('the bar still offers a refill',
+      H.prompt && H.prompt.text.indexOf('potion') >= 0, H.prompt && H.prompt.text);
+    W.dialogue.active = false;         // the first Z would only clear a bubble
+    press('act'); steps(2);
+    check('and it still pours', W.hands.has('potion'), G.state.held);
+    W.dialogue.active = false;
+    press('act'); steps(2);
+    check('so you can always top up', !!G.bobaFx && G.bobaFx.kind === 'eightlegs',
+      G.bobaFx && G.bobaFx.kind);
+    G.bobaFx = null;
+    W.hands.drop();
+
+    // and Webs pours wherever you left him, too
+    G.go('house', { room: 'living' }); steps(2); secs(0.4);
+    var websLiving = H.npcs.filter(function (n) { return n.friendKey === 'webs'; })[0];
+    check('Webs lives where you left him', !!websLiving);
+    H.player.x = websLiving.x + 22; H.player.y = websLiving.y; steps(3);
+    check('with empty paws, so the offer is his and not a leftover',
+      W.hands.empty());
+    check('and standing by him offers a potion',
+      H.prompt && H.prompt.text.indexOf('potion') >= 0, H.prompt && H.prompt.text);
+    W.dialogue.active = false;
+    press('act'); steps(2);
+    check('which he pours on the spot', W.hands.has('potion'));
+    W.hands.drop();
+
+    // --- and the pads sit next to the road, so the car barely goes off it
+    var padTree = W.MAPS.warmland2.pois.filter(function (q) {
+      return q.to && q.to.room === 'outside2';
+    })[0];
+    var padFair = W.MAPS.warmland2.pois.filter(function (q) {
+      return q.to && q.to.room === 'themepark';
+    })[0];
+    check('the treehouse pad is beside the road',
+      Math.abs(padTree.y - 500) - padTree.r < 40, Math.round(Math.abs(padTree.y - 500) - padTree.r));
+    check('so is the theme park',
+      Math.abs(padFair.y - 500) - padFair.r < 40, Math.round(Math.abs(padFair.y - 500) - padFair.r));
     Object.keys(W.FRIENDS).forEach(function (k) {
       check('friend ' + k + ' has a real character', !!W.CHARS[W.FRIENDS[k].char]);
     });

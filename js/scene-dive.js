@@ -432,7 +432,7 @@
       ctx.rect(S.x - 16, S.y - 26, 32, 28);
       ctx.clip();
       W.drawChar(ctx, S.x, S.y + 8, {
-        char: 'bobby', suit: G.state.suit, dir: 'down', t: G.t, scale: 0.24, noShadow: true
+        char: W.heroChar(), suit: G.state.suit, dir: 'down', t: G.t, scale: 0.24, noShadow: true
       });
       ctx.restore();
     }

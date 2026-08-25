@@ -12,9 +12,7 @@
   var SLOTS = null;   // built on first enter — avoids a parse-time dependency
   function buildSlots() {
     return W.SUIT_ORDER.map(function (k) {
-      var label = W.SUITS[k].name.replace(' Bobby', '');
-      if (k === 'none') label = 'Bobby';
-      return { key: k, label: label, unlocks: W.SUITS[k].unlocks };
+      return { key: k, label: W.suitShort(k), unlocks: W.suitUnlocks(k) };
     });
   }
 
@@ -37,7 +35,7 @@
   var S = { opaque: true, sel: 0, t: 0, spin: 0, closing: 0, bg: null };
 
   S.enter = function () {
-    if (!SLOTS) SLOTS = buildSlots();
+    SLOTS = buildSlots();          // names follow whoever is playing
     S.t = 0; S.spin = 0; S.closing = 0;
     // start on whatever Bobby is currently wearing
     for (var i = 0; i < SLOTS.length; i++) {
@@ -103,7 +101,7 @@
 
       ctx.drawImage(card(on), cx - 86, 158 + lift);
 
-      W.drawChar(ctx, cx, 344 + lift, { char: 'bobby', dir: 'down', suit: slot.key, t: S.t, scale: 0.74 });
+      W.drawChar(ctx, cx, 344 + lift, { char: W.heroChar(), dir: 'down', suit: slot.key, t: S.t, scale: 0.74 });
 
       C.textCached(ctx, slot.label, cx, 378 + lift, {
         size: 18, align: 'center', color: PAL.outline, seed: 'sl' + i
@@ -139,10 +137,10 @@
     }
 
     // the suit Bobby is actually wearing right now
-    C.textCached(ctx, 'Wearing: ' + W.SUITS[W.game.state.suit].name, 480, 462, {
+    C.textCached(ctx, 'Wearing: ' + W.suitName(W.game.state.suit), 480, 462, {
       size: 20, align: 'center', color: PAL.white, seed: 'wr'
     });
-    C.textCached(ctx, W.SUITS[W.game.state.suit].blurb, 480, 490, {
+    C.textCached(ctx, W.suitBlurb(W.game.state.suit), 480, 490, {
       size: 16, align: 'center', color: '#C7B4D6', seed: 'bl'
     });
 

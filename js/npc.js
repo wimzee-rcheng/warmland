@@ -7,6 +7,8 @@
 (function (W) {
   'use strict';
 
+  var PAL = W.PAL;
+
   var WEATHER_CHAT = {
     rainy: ['Puddle weather!', 'Drip drop drip...', 'My fur is soggy!'],
     snowy: ['SNOW DAY!', 'Brrr! Cosy though.', 'Catch a snowflake!'],
@@ -39,7 +41,7 @@
     a.friendKey = key;
     a.name = f.name;
     a.personality = f.personality;
-    a.scale = f.char === 'critter' ? 0.75 : 1;   // pom-poms are tiny
+    a.scale = (f.char === 'critter' || f.char === 'scaly') ? 0.8 : 1;   // critters are tiny
     a.data.chatIn = 3 + Math.random() * style.chat;
     a.data.slot = 0;
     return a;
@@ -197,6 +199,12 @@
    * different button (X → W.dismiss) so it can't happen by accident. */
   W.talkTo = function (a) {
     var st = W.game.state;
+    // ghosts and anyone else without a friend record can be greeted, but
+    // never join the party — an undefined key used to poison state.party
+    if (!a.friendKey) {
+      a.says('Trix!', 2);
+      return false;
+    }
     if (a.isCrowd) {
       a.says('Trix!', 2);
       return false;
